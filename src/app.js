@@ -175,6 +175,39 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * c; // Distance in meters
 }
 
+function calculateBearing(lat1, lon1, lat2, lon2) {
+    // Calculate bearing from point 1 to point 2
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) -
+              Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    
+    const θ = Math.atan2(y, x);
+    const bearing = (θ * 180 / Math.PI + 360) % 360; // Convert to degrees
+
+    return bearing;
+}
+
+function bearingToCompassDirection(bearing) {
+    // Convert bearing (0-360 degrees) to compass direction
+    const directions = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
+    const index = Math.round(bearing / 45) % 8;
+    return directions[index];
+}
+
+function formatDistance(meters) {
+    // Format distance for speech
+    if (meters < 1000) {
+        return `${Math.round(meters)} meters`;
+    } else {
+        const km = (meters / 1000).toFixed(1);
+        return `${km} kilometers`;
+    }
+}
+
 function updateDistancesAndCheckSwitch(lat, lon) {
     if (!nearbyArticles.length) return;
 
@@ -248,6 +281,9 @@ async function fetchNearbyArticles(lat, lon) {
             showStatus(`Found ${nearbyArticles.length} places nearby`, 'success');
             displayArticles(nearbyArticles);
             
+            // Fetch images for all articles
+            fetchArticleImages(nearbyArticles.map(a => a.pageid));
+            
             // Auto-start playing the nearest article
             if (autoPlayMode && nearbyArticles.length > 0) {
                 currentArticleIndex = 0;
@@ -281,6 +317,11 @@ function displayArticles(articles) {
                          article.dist ? `${Math.round(article.dist)} meters away` : 
                          'Distance unknown';
 
+        // Create image container (initially empty, will be populated by fetchArticleImages)
+        const imageContainer = document.createElement('div');
+        imageContainer.className = 'article-image-container';
+        imageContainer.id = `image-${article.pageid}`;
+
         // Create elements safely to avoid XSS
         const titleDiv = document.createElement('div');
         titleDiv.className = 'article-title';
@@ -295,6 +336,7 @@ function displayArticles(articles) {
         snippetDiv.id = `snippet-${article.pageid}`;
         snippetDiv.textContent = 'Click to load description...';
 
+        card.appendChild(imageContainer);
         card.appendChild(titleDiv);
         card.appendChild(distanceDiv);
         card.appendChild(snippetDiv);
@@ -310,6 +352,41 @@ function displayArticles(articles) {
         // Fetch snippet for each article
         fetchArticleSnippet(article.pageid);
     });
+}
+
+async function fetchArticleImages(pageids) {
+    try {
+        // Fetch images for multiple pages at once
+        const url = `https://en.wikipedia.org/w/api.php?` +
+            `action=query&` +
+            `prop=pageimages&` +
+            `piprop=thumbnail&` +
+            `pithumbsize=300&` +
+            `pageids=${pageids.join('|')}&` +
+            `format=json&` +
+            `origin=*`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.query && data.query.pages) {
+            Object.values(data.query.pages).forEach(page => {
+                if (page.thumbnail) {
+                    const imageContainer = document.getElementById(`image-${page.pageid}`);
+                    if (imageContainer) {
+                        const img = document.createElement('img');
+                        img.src = page.thumbnail.source;
+                        img.alt = page.title || 'Article image';
+                        img.className = 'article-image';
+                        img.loading = 'lazy';
+                        imageContainer.appendChild(img);
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching article images:', error);
+    }
 }
 
 function setupArticleNavigation() {
@@ -447,8 +524,23 @@ async function readArticle(pageid, title) {
             if (text) {
                 // Sanitize title for display
                 const sanitizedTitle = title.replace(/[<>]/g, '');
+                
+                // Find the article in nearbyArticles to get location data
+                const article = nearbyArticles.find(a => a.pageid == pageid);
+                let directionIntro = '';
+                
+                if (article && currentPosition) {
+                    const { latitude, longitude } = currentPosition.coords;
+                    const distance = calculateDistance(latitude, longitude, article.lat, article.lon);
+                    const bearing = calculateBearing(latitude, longitude, article.lat, article.lon);
+                    const direction = bearingToCompassDirection(bearing);
+                    const distanceText = formatDistance(distance);
+                    
+                    directionIntro = `${distanceText} to your ${direction} is `;
+                }
+                
                 showStatus(`Reading: ${sanitizedTitle} (${currentArticleIndex + 1}/${nearbyArticles.length})`, 'success');
-                speakText(`${sanitizedTitle}. ${text}`);
+                speakText(`${directionIntro}${sanitizedTitle}. ${text}`);
             } else {
                 showStatus('No content available for this article', 'error');
                 // Auto-advance to next article if in auto-play mode
