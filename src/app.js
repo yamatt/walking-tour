@@ -33,20 +33,20 @@ function init() {
     startBtn.addEventListener('click', startTour);
     stopBtn.addEventListener('click', stopSpeaking);
     refreshBtn.addEventListener('click', refreshNearbyPlaces);
-    
+
     // Set up keyboard navigation once
     setupArticleNavigation();
-    
+
     // Prevent zoom on double-tap for buttons (mobile)
     preventDoubleTapZoom(startBtn);
     preventDoubleTapZoom(stopBtn);
     preventDoubleTapZoom(refreshBtn);
-    
+
     // Stop speaking when page is unloaded
     window.addEventListener('beforeunload', () => {
         stopSpeaking();
     });
-    
+
     // Handle visibility changes (e.g., screen lock on mobile)
     document.addEventListener('visibilitychange', handleVisibilityChange);
 }
@@ -102,17 +102,17 @@ function startTour() {
 function onLocationSuccess(position) {
     const now = Date.now();
     const { latitude, longitude } = position.coords;
-    
+
     // Update current position
     currentPosition = position;
-    
+
     locationInfo.textContent = `📍 Your location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     locationInfo.classList.remove('hidden');
-    
+
     // On first location or if it's been more than the check interval since last check
     if (!lastLocationCheck || (now - lastLocationCheck) > LOCATION_CHECK_INTERVAL_MS) {
         lastLocationCheck = now;
-        
+
         if (!nearbyArticles.length) {
             // First time - fetch articles
             showStatus('Location found! Searching for nearby places...', 'success');
@@ -142,7 +142,7 @@ function onLocationError(error) {
     }
     showStatus(message, 'error');
     startBtn.disabled = false;
-    
+
     // Stop watching location on error
     if (locationWatchId) {
         navigator.geolocation.clearWatch(locationWatchId);
@@ -185,7 +185,7 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
     const y = Math.sin(Δλ) * Math.cos(φ2);
     const x = Math.cos(φ1) * Math.sin(φ2) -
               Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-    
+
     const θ = Math.atan2(y, x);
     const bearing = (θ * 180 / Math.PI + 360) % 360; // Convert to degrees
 
@@ -237,12 +237,12 @@ function updateDistancesAndCheckSwitch(lat, lon) {
     if (autoPlayMode && isSpeaking) {
         const currentArticle = nearbyArticles[currentArticleIndex];
         const nearestArticle = nearbyArticles[0];
-        
+
         // If the nearest article is different and significantly closer (threshold)
-        if (currentArticle && nearestArticle && 
+        if (currentArticle && nearestArticle &&
             currentArticle.pageid !== nearestArticle.pageid &&
             nearestArticle.currentDist < currentArticle.currentDist - ARTICLE_SWITCH_THRESHOLD_METERS) {
-            
+
             showStatus(`Switching to nearer place: ${nearestArticle.title}`, 'info');
             currentArticleIndex = 0;
             readArticle(nearestArticle.pageid, nearestArticle.title);
@@ -252,7 +252,7 @@ function updateDistancesAndCheckSwitch(lat, lon) {
 
 async function fetchNearbyArticles(lat, lon) {
     loadingDiv.classList.remove('hidden');
-    
+
     try {
         // Wikipedia geosearch API
         const url = `https://en.wikipedia.org/w/api.php?` +
@@ -275,16 +275,16 @@ async function fetchNearbyArticles(lat, lon) {
                 ...article,
                 currentDist: calculateDistance(lat, lon, article.lat, article.lon)
             }));
-            
+
             // Sort by distance (nearest first)
             nearbyArticles.sort((a, b) => a.currentDist - b.currentDist);
-            
+
             showStatus(`Found ${nearbyArticles.length} places nearby`, 'success');
             displayArticles(nearbyArticles);
-            
+
             // Fetch images for all articles
             fetchArticleImages(nearbyArticles.map(a => a.pageid));
-            
+
             // Auto-start playing the nearest article
             if (autoPlayMode && nearbyArticles.length > 0) {
                 currentArticleIndex = 0;
@@ -296,7 +296,7 @@ async function fetchNearbyArticles(lat, lon) {
             showStatus('No places found nearby. Try moving to a different location.', 'info');
             articlesDiv.innerHTML = '<p style="text-align: center; padding: 20px; color: #666;">No results found within 10km</p>';
         }
-        
+
         startBtn.disabled = false;
     } catch (error) {
         loadingDiv.classList.add('hidden');
@@ -314,8 +314,8 @@ function displayArticles(articles) {
         card.dataset.pageid = article.pageid;
         card.dataset.index = index;
 
-        const distance = article.currentDist ? `${Math.round(article.currentDist)} meters away` : 
-                         article.dist ? `${Math.round(article.dist)} meters away` : 
+        const distance = article.currentDist ? `${Math.round(article.currentDist)} meters away` :
+                         article.dist ? `${Math.round(article.dist)} meters away` :
                          'Distance unknown';
 
         // Create image container (initially empty, will be populated by fetchArticleImages)
@@ -347,7 +347,7 @@ function displayArticles(articles) {
             currentArticleIndex = index;
             readArticle(article.pageid, article.title);
         });
-        
+
         articlesDiv.appendChild(card);
 
         // Fetch snippet for each article
@@ -393,28 +393,28 @@ async function fetchArticleImages(pageids) {
 function setupArticleNavigation() {
     // Add keyboard navigation (only set up once during init)
     document.addEventListener('keydown', handleKeyNavigation);
-    
+
     // Add touch swipe navigation for mobile
     let touchStartX = 0;
     let touchStartY = 0;
     let touchEndX = 0;
     let touchEndY = 0;
-    
+
     articlesDiv.addEventListener('touchstart', (e) => {
         touchStartX = e.changedTouches[0].screenX;
         touchStartY = e.changedTouches[0].screenY;
     }, { passive: true });
-    
+
     articlesDiv.addEventListener('touchend', (e) => {
         touchEndX = e.changedTouches[0].screenX;
         touchEndY = e.changedTouches[0].screenY;
         handleSwipeGesture();
     }, { passive: true });
-    
+
     function handleSwipeGesture() {
         const diffX = touchStartX - touchEndX;
         const diffY = touchStartY - touchEndY;
-        
+
         // Only handle horizontal swipes (not vertical scrolling)
         if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > SWIPE_THRESHOLD_PX) {
             if (diffX > 0) {
@@ -442,11 +442,11 @@ function handleKeyNavigation(e) {
 
 function navigateToArticle(newIndex) {
     if (newIndex < 0 || newIndex >= nearbyArticles.length) return;
-    
+
     currentArticleIndex = newIndex;
     const article = nearbyArticles[currentArticleIndex];
     readArticle(article.pageid, article.title);
-    
+
     // Scroll to the article card
     const card = document.querySelector(`[data-pageid="${article.pageid}"]`);
     if (card) {
@@ -525,21 +525,21 @@ async function readArticle(pageid, title) {
             if (text) {
                 // Sanitize title for display
                 const sanitizedTitle = title.replace(/[<>]/g, '');
-                
+
                 // Find the article in nearbyArticles to get location data
                 const article = nearbyArticles.find(a => a.pageid == pageid);
                 let directionIntro = '';
-                
+
                 if (article && currentPosition) {
                     const { latitude, longitude } = currentPosition.coords;
                     const distance = calculateDistance(latitude, longitude, article.lat, article.lon);
                     const bearing = calculateBearing(latitude, longitude, article.lat, article.lon);
                     const direction = bearingToCompassDirection(bearing);
                     const distanceText = formatDistance(distance);
-                    
+
                     directionIntro = `${distanceText} to your ${direction} is `;
                 }
-                
+
                 showStatus(`Reading: ${sanitizedTitle} (${currentArticleIndex + 1}/${nearbyArticles.length})`, 'success');
                 speakText(`${directionIntro}${sanitizedTitle}. ${text}`);
             } else {
@@ -567,16 +567,17 @@ async function readArticle(pageid, title) {
 
 function advanceToNextArticle() {
     if (!autoPlayMode || !nearbyArticles.length) return;
-    
+
     // Move to next article
     currentArticleIndex++;
-    
+
     if (currentArticleIndex >= nearbyArticles.length) {
-        // Reached the end, loop back to start
-        currentArticleIndex = 0;
-        showStatus('Completed tour of all places. Starting over...', 'info');
+        // Reached the end, stop the tour
+        showStatus('Completed tour of all places.', 'success');
+        currentArticleIndex = nearbyArticles.length - 1; // Stay at last article
+        return;
     }
-    
+
     const nextArticle = nearbyArticles[currentArticleIndex];
     setTimeout(() => {
         readArticle(nextArticle.pageid, nextArticle.title);
@@ -606,7 +607,7 @@ function speakText(text) {
         isSpeaking = false;
         stopBtn.classList.add('hidden');
         showStatus('Finished reading', 'success');
-        
+
         // Auto-advance to next article if in auto-play mode
         if (autoPlayMode) {
             advanceToNextArticle();
@@ -624,12 +625,12 @@ function speakText(text) {
 
 function stopSpeaking() {
     cancelCurrentSpeech();
-    
+
     // Remove active state from all cards
     document.querySelectorAll('.article-card').forEach(card => {
         card.classList.remove('active');
     });
-    
+
     showStatus('Reading stopped', 'info');
 }
 
