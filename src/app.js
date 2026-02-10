@@ -27,6 +27,9 @@ function init() {
     stopBtn.addEventListener('click', stopSpeaking);
     refreshBtn.addEventListener('click', refreshNearbyPlaces);
     
+    // Set up keyboard navigation once
+    setupArticleNavigation();
+    
     // Stop speaking when page is unloaded
     window.addEventListener('beforeunload', () => {
         stopSpeaking();
@@ -272,15 +275,10 @@ function displayArticles(articles) {
         // Fetch snippet for each article
         fetchArticleSnippet(article.pageid);
     });
-
-    // Add scroll navigation with keyboard
-    setupArticleNavigation();
 }
 
 function setupArticleNavigation() {
-    // Remove any existing listener
-    document.removeEventListener('keydown', handleKeyNavigation);
-    // Add keyboard navigation
+    // Add keyboard navigation (only set up once during init)
     document.addEventListener('keydown', handleKeyNavigation);
 }
 
@@ -337,11 +335,17 @@ async function fetchArticleSnippet(pageid) {
     }
 }
 
-async function readArticle(pageid, title) {
-    // Stop any current speech
-    if (isSpeaking) {
+function cancelCurrentSpeech() {
+    if (speechSynth) {
         speechSynth.cancel();
     }
+    isSpeaking = false;
+    stopBtn.classList.add('hidden');
+}
+
+async function readArticle(pageid, title) {
+    // Stop any current speech
+    cancelCurrentSpeech();
 
     // Highlight selected article
     document.querySelectorAll('.article-card').forEach(card => {
@@ -425,7 +429,7 @@ function speakText(text) {
     }
 
     // Cancel any ongoing speech
-    speechSynth.cancel();
+    cancelCurrentSpeech();
 
     currentUtterance = new SpeechSynthesisUtterance(text);
     currentUtterance.rate = 0.9;
@@ -458,11 +462,7 @@ function speakText(text) {
 }
 
 function stopSpeaking() {
-    if (speechSynth) {
-        speechSynth.cancel();
-    }
-    isSpeaking = false;
-    stopBtn.classList.add('hidden');
+    cancelCurrentSpeech();
     
     // Remove active state from all cards
     document.querySelectorAll('.article-card').forEach(card => {
