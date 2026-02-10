@@ -1,6 +1,12 @@
 // Import styles
 import './styles.css';
 
+// Configuration constants
+const LOCATION_CHECK_INTERVAL_MS = 30000; // 30 seconds between location checks
+const ARTICLE_SWITCH_THRESHOLD_METERS = 100; // Switch to nearer article if 100m closer
+const ARTICLE_PAUSE_MS = 2000; // 2 second pause between articles
+const SWIPE_THRESHOLD_PX = 50; // Minimum swipe distance for gesture detection
+
 // State management
 let currentPosition = null;
 let speechSynth = window.speechSynthesis;
@@ -102,8 +108,8 @@ function onLocationSuccess(position) {
     locationInfo.textContent = `📍 Your location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     locationInfo.classList.remove('hidden');
     
-    // On first location or if it's been more than 30 seconds since last check
-    if (!lastLocationCheck || (now - lastLocationCheck) > 30000) {
+    // On first location or if it's been more than the check interval since last check
+    if (!lastLocationCheck || (now - lastLocationCheck) > LOCATION_CHECK_INTERVAL_MS) {
         lastLocationCheck = now;
         
         if (!nearbyArticles.length) {
@@ -198,10 +204,10 @@ function updateDistancesAndCheckSwitch(lat, lon) {
         const currentArticle = nearbyArticles[currentArticleIndex];
         const nearestArticle = nearbyArticles[0];
         
-        // If the nearest article is different and significantly closer (more than 100m closer)
+        // If the nearest article is different and significantly closer (threshold)
         if (currentArticle && nearestArticle && 
             currentArticle.pageid !== nearestArticle.pageid &&
-            nearestArticle.currentDist < currentArticle.currentDist - 100) {
+            nearestArticle.currentDist < currentArticle.currentDist - ARTICLE_SWITCH_THRESHOLD_METERS) {
             
             showStatus(`Switching to nearer place: ${nearestArticle.title}`, 'info');
             currentArticleIndex = 0;
@@ -328,12 +334,11 @@ function setupArticleNavigation() {
     }, { passive: true });
     
     function handleSwipeGesture() {
-        const swipeThreshold = 50;
         const diffX = touchStartX - touchEndX;
         const diffY = touchStartY - touchEndY;
         
         // Only handle horizontal swipes (not vertical scrolling)
-        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > swipeThreshold) {
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > SWIPE_THRESHOLD_PX) {
             if (diffX > 0) {
                 // Swipe left - next article
                 navigateToArticle(currentArticleIndex + 1);
@@ -482,7 +487,7 @@ function advanceToNextArticle() {
     const nextArticle = nearbyArticles[currentArticleIndex];
     setTimeout(() => {
         readArticle(nextArticle.pageid, nextArticle.title);
-    }, 2000); // 2 second pause between articles
+    }, ARTICLE_PAUSE_MS); // Pause between articles
 }
 
 function speakText(text) {
