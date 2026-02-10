@@ -324,9 +324,16 @@ function displayArticles(articles) {
         imageContainer.id = `image-${article.pageid}`;
 
         // Create elements safely to avoid XSS
-        const titleDiv = document.createElement('div');
-        titleDiv.className = 'article-title';
-        titleDiv.textContent = article.title;
+        const titleLink = document.createElement('a');
+        titleLink.className = 'article-title';
+        titleLink.textContent = article.title;
+        titleLink.href = `https://en.wikipedia.org/?curid=${article.pageid}`;
+        titleLink.target = '_blank';
+        titleLink.rel = 'noopener noreferrer';
+        // Prevent title click from triggering card click
+        titleLink.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
 
         const distanceDiv = document.createElement('div');
         distanceDiv.className = 'article-distance';
@@ -338,7 +345,7 @@ function displayArticles(articles) {
         snippetDiv.textContent = 'Click to load description...';
 
         card.appendChild(imageContainer);
-        card.appendChild(titleDiv);
+        card.appendChild(titleLink);
         card.appendChild(distanceDiv);
         card.appendChild(snippetDiv);
 

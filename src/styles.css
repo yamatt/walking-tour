@@ -182,6 +182,20 @@ h1 {
     font-weight: 600;
     color: #667eea;
     margin-bottom: 8px;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.article-title:hover {
+    color: #764ba2;
+    text-decoration: underline;
+}
+
+.article-title::after {
+    content: " ↗";
+    font-size: 0.8em;
+    opacity: 0.6;
 }
 
 .article-distance {
