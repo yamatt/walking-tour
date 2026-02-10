@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Walking Tour - Discover Things Near You</title>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚶 Walking Tour</h1>
+            <p class="subtitle">Discover and hear about things near you</p>
+        </header>
+
+        <div class="control-panel">
+            <button id="startBtn" class="button button-primary">📍 Start Tour</button>
+            <button id="stopBtn" class="button button-stop hidden">⏹️ Stop Reading</button>
+            <button id="refreshBtn" class="button button-secondary hidden">🔄 Refresh Nearby Places</button>
+            
+            <div id="status" class="status hidden"></div>
+            <div id="locationInfo" class="location-info hidden"></div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p style="margin-top: 10px;">Finding places near you...</p>
+        </div>
+
+        <div id="articles" class="articles"></div>
+    </div>
+</body>
+</html>

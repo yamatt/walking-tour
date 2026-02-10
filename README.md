@@ -2,12 +2,25 @@
 
 A web app that acts as your personal walking tour guide. As you walk around, it uses your location to discover nearby Wikipedia articles and reads them out loud using text-to-speech.
 
-![Walking Tour Screenshot](https://github.com/user-attachments/assets/73d0488e-03db-4257-bc74-00b79127aecf)
+![Walking Tour Screenshot](https://github.com/user-attachments/assets/59cffcdb-a4f7-4d0d-b5b3-3c47013b2d09)
 
 ## Features
 
-- 📍 **Geolocation**: Automatically detects your current location
-- 🌍 **Wikipedia Integration**: Finds nearby places and landmarks within 10km using Wikipedia's geosearch API
+### 🎯 Hands-free Auto-Play Mode
+- **Automatic narration**: Starts reading the nearest article immediately after finding your location
+- **Sequential playback**: Automatically advances to the next nearest article when finished
+- **Smart location monitoring**: Continuously checks your position every 30 seconds
+- **Dynamic switching**: Switches to a significantly nearer article (>100m closer) when you move
+- **Seamless experience**: Completely hands-off experience designed for walking tours
+
+### 🎮 Manual Control Options
+- **Keyboard navigation**: Use arrow keys to navigate between articles
+- **Click to play**: Tap any article card to immediately start reading it
+- **Stop/Resume**: Full control to pause and resume narration
+
+### 🌍 Core Features
+- 📍 **Geolocation**: Automatically detects your current location with continuous monitoring
+- 🌐 **Wikipedia Integration**: Finds nearby places and landmarks within 10km using Wikipedia's geosearch API
 - 🔊 **Text-to-Speech**: Reads Wikipedia article content out loud using the Web Speech API
 - 📱 **Mobile-Friendly**: Responsive design that works great on phones and tablets
 - 🎨 **Modern UI**: Beautiful gradient design with smooth animations
@@ -16,10 +29,14 @@ A web app that acts as your personal walking tour guide. As you walk around, it 
 
 1. Open the app in your web browser
 2. Click **"Start Tour"** and allow location access when prompted
-3. The app will display nearby places with their distances
-4. Click on any place to hear its Wikipedia article read aloud
-5. Use **"Stop Reading"** to pause the narration
-6. Use **"Refresh Nearby Places"** to update the list
+3. The app automatically starts reading the nearest article
+4. Walk around, and the app will:
+   - Continue to the next nearest place after finishing each article
+   - Switch to a nearer place if you move significantly closer to it
+   - Update distances in real-time as you move
+5. Use **arrow keys** or **click** to manually select different articles
+6. Use **"Stop Reading"** to pause the narration
+7. Use **"Refresh Nearby Places"** to manually update the list
 
 ## Live Demo
 
@@ -27,21 +44,49 @@ Visit: [https://yamatt.github.io/walking-tour/](https://yamatt.github.io/walking
 
 ## Local Development
 
-Simply open `index.html` in a modern web browser. For best results:
+### Prerequisites
+
+- Node.js 18+ and npm
+
+### Setup
 
 ```bash
-# Serve locally with Python
-python3 -m http.server 8000
+# Install dependencies
+npm install
 
-# Then visit http://localhost:8000
+# Start development server with hot reload
+npm run serve
+
+# Build for production
+npm run build
+
+# The production files will be in the dist/ directory
+```
+
+### Project Structure
+
+```
+walking-tour/
+├── src/
+│   ├── app.js          # Main application logic
+│   ├── styles.css      # Application styles
+│   └── index.html      # HTML template
+├── dist/               # Built files (generated)
+├── .github/
+│   ├── workflows/
+│   │   └── deploy.yml  # CI/CD workflow for GitHub Pages
+│   └── dependabot.yml  # Automated dependency updates
+├── webpack.config.js   # Webpack configuration
+└── package.json        # Project dependencies and scripts
 ```
 
 ## Browser Compatibility
 
 Requires a modern browser with support for:
-- Geolocation API
+- Geolocation API with watchPosition
 - Fetch API
 - Web Speech API (for text-to-speech)
+- ES6+ JavaScript features
 
 Tested on:
 - Chrome/Edge (recommended)
@@ -53,13 +98,25 @@ Tested on:
 - Your location is used only to find nearby articles and is not stored or transmitted anywhere except to Wikipedia's public API
 - All processing happens in your browser
 - No tracking or analytics
+- Location monitoring can be stopped at any time
 
 ## Technology Stack
 
-- Pure HTML, CSS, and JavaScript (no dependencies)
-- Wikipedia API for geosearch and article content
-- Browser Geolocation API
-- Web Speech API for text-to-speech
+- **Build System**: Webpack 5
+- **Languages**: HTML5, CSS3, ES6+ JavaScript
+- **APIs**: 
+  - Wikipedia geosearch and extracts API
+  - Browser Geolocation API (watchPosition)
+  - Web Speech API (SpeechSynthesis)
+- **CI/CD**: GitHub Actions with automated deployment to GitHub Pages
+- **Dependency Management**: npm with Dependabot for automated updates
+
+## Development
+
+The project uses modern build tools:
+- **Webpack**: Module bundling with code splitting and minification
+- **GitHub Actions**: Automated builds and deployments
+- **Dependabot**: Automated dependency updates for npm and GitHub Actions
 
 ## License
 
