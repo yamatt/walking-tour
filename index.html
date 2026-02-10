@@ -226,7 +226,7 @@
 
     <script>
         let currentPosition = null;
-        let speechSynthesis = window.speechSynthesis;
+        let speechSynth = window.speechSynthesis;
         let currentUtterance = null;
         let isSpeaking = false;
 
@@ -273,7 +273,7 @@
             currentPosition = position;
             const { latitude, longitude } = position.coords;
             
-            locationInfo.innerHTML = `📍 Your location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+            locationInfo.textContent = `📍 Your location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
             locationInfo.classList.remove('hidden');
             
             showStatus('Location found! Searching for nearby places...', 'success');
@@ -322,7 +322,7 @@
                     `action=query&` +
                     `list=geosearch&` +
                     `gscoord=${lat}|${lon}&` +
-                    `gsradius=10000&` + // 10km radius
+                    `gsradius=10000&` + // 10000 meters (10km radius)
                     `gslimit=10&` +
                     `format=json&` +
                     `origin=*`;
@@ -358,11 +358,23 @@
 
                 const distance = article.dist ? `${Math.round(article.dist)} meters away` : 'Distance unknown';
 
-                card.innerHTML = `
-                    <div class="article-title">${article.title}</div>
-                    <div class="article-distance">📏 ${distance}</div>
-                    <div class="article-snippet" id="snippet-${article.pageid}">Click to load description...</div>
-                `;
+                // Create elements safely to avoid XSS
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'article-title';
+                titleDiv.textContent = article.title;
+
+                const distanceDiv = document.createElement('div');
+                distanceDiv.className = 'article-distance';
+                distanceDiv.textContent = `📏 ${distance}`;
+
+                const snippetDiv = document.createElement('div');
+                snippetDiv.className = 'article-snippet';
+                snippetDiv.id = `snippet-${article.pageid}`;
+                snippetDiv.textContent = 'Click to load description...';
+
+                card.appendChild(titleDiv);
+                card.appendChild(distanceDiv);
+                card.appendChild(snippetDiv);
 
                 card.addEventListener('click', () => readArticle(article.pageid, article.title));
                 articlesDiv.appendChild(card);
@@ -430,8 +442,10 @@
                     const text = page.extract;
 
                     if (text) {
-                        showStatus(`Reading: ${title}`, 'success');
-                        speakText(`${title}. ${text}`);
+                        // Sanitize title for display
+                        const sanitizedTitle = title.replace(/[<>]/g, '');
+                        showStatus(`Reading: ${sanitizedTitle}`, 'success');
+                        speakText(`${sanitizedTitle}. ${text}`);
                     } else {
                         showStatus('No content available for this article', 'error');
                     }
@@ -444,13 +458,13 @@
         }
 
         function speakText(text) {
-            if (!speechSynthesis) {
+            if (!speechSynth) {
                 showStatus('Text-to-speech is not supported in your browser', 'error');
                 return;
             }
 
             // Cancel any ongoing speech
-            speechSynthesis.cancel();
+            speechSynth.cancel();
 
             currentUtterance = new SpeechSynthesisUtterance(text);
             currentUtterance.rate = 0.9;
@@ -474,12 +488,12 @@
                 showStatus('Error with speech synthesis: ' + event.error, 'error');
             };
 
-            speechSynthesis.speak(currentUtterance);
+            speechSynth.speak(currentUtterance);
         }
 
         function stopSpeaking() {
-            if (speechSynthesis) {
-                speechSynthesis.cancel();
+            if (speechSynth) {
+                speechSynth.cancel();
             }
             isSpeaking = false;
             stopBtn.classList.add('hidden');
