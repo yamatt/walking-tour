@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
+    paths:
+      - ".github/workflows/deploy.yml"
+      - "src/**"
+      - "package.json"
+      - "webpack.config.js"
 
 permissions:
   contents: read
@@ -16,7 +17,7 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -29,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
       
       - name: Install dependencies
