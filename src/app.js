@@ -6,6 +6,7 @@ const LOCATION_CHECK_INTERVAL_MS = 30000; // 30 seconds between location checks
 const ARTICLE_SWITCH_THRESHOLD_METERS = 100; // Switch to nearer article if 100m closer
 const ARTICLE_PAUSE_MS = 2000; // 2 second pause between articles
 const SWIPE_THRESHOLD_PX = 50; // Minimum swipe distance for gesture detection
+const DOUBLE_TAP_THRESHOLD_MS = 500; // Double-tap detection window in milliseconds
 
 // State management
 let currentPosition = null;
@@ -55,7 +56,7 @@ function preventDoubleTapZoom(element) {
     element.addEventListener('touchend', (e) => {
         const currentTime = new Date().getTime();
         const tapLength = currentTime - lastTap;
-        if (tapLength < 500 && tapLength > 0) {
+        if (tapLength < DOUBLE_TAP_THRESHOLD_MS && tapLength > 0) {
             e.preventDefault();
         }
         lastTap = currentTime;
