@@ -2,6 +2,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: rgba(102, 126, 234, 0.3);
 }
 
 body {
@@ -10,6 +11,9 @@ body {
     min-height: 100vh;
     padding: 20px;
     color: #333;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    touch-action: manipulation;
 }
 
 .container {
@@ -51,11 +55,21 @@ h1 {
     cursor: pointer;
     transition: all 0.3s ease;
     margin-bottom: 10px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.button:active:not(:disabled) {
+    transform: scale(0.98);
 }
 
 .button-primary {
@@ -120,6 +134,9 @@ h1 {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
     cursor: pointer;
     transition: all 0.3s ease;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .article-card:hover {
@@ -127,8 +144,13 @@ h1 {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
+.article-card:active {
+    transform: scale(0.98);
+}
+
 .article-card.active {
     border: 3px solid #667eea;
+    box-shadow: 0 8px 30px rgba(102, 126, 234, 0.3);
 }
 
 .article-title {
@@ -183,11 +205,95 @@ h1 {
 }
 
 @media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+
     h1 {
         font-size: 2em;
     }
 
+    .subtitle {
+        font-size: 1em;
+    }
+
     .control-panel {
-        padding: 20px;
+        padding: 15px;
+    }
+
+    .button {
+        padding: 12px 20px;
+        font-size: 1em;
+    }
+
+    .article-card {
+        padding: 15px;
+    }
+
+    .article-title {
+        font-size: 1.2em;
+    }
+
+    .article-distance {
+        font-size: 0.85em;
+    }
+
+    .article-snippet {
+        font-size: 0.9em;
+    }
+
+    .status {
+        padding: 12px;
+        font-size: 0.9em;
+    }
+
+    .location-info {
+        font-size: 0.85em;
+        padding: 8px;
+    }
+}
+
+@media (max-width: 400px) {
+    body {
+        padding: 8px;
+    }
+
+    h1 {
+        font-size: 1.75em;
+    }
+
+    .control-panel {
+        padding: 12px;
+    }
+
+    .button {
+        padding: 10px 15px;
+        font-size: 0.95em;
+    }
+
+    .article-card {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+}
+
+/* Improve scrolling on iOS */
+.articles {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent text selection on interactive elements */
+.button,
+.article-card,
+header {
+    -webkit-touch-callout: none;
+}
+
+/* Ensure buttons are always visible and tappable */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
     }
 }

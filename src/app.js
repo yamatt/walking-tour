@@ -30,10 +30,39 @@ function init() {
     // Set up keyboard navigation once
     setupArticleNavigation();
     
+    // Prevent zoom on double-tap for buttons (mobile)
+    preventDoubleTapZoom(startBtn);
+    preventDoubleTapZoom(stopBtn);
+    preventDoubleTapZoom(refreshBtn);
+    
     // Stop speaking when page is unloaded
     window.addEventListener('beforeunload', () => {
         stopSpeaking();
     });
+    
+    // Handle visibility changes (e.g., screen lock on mobile)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+}
+
+function preventDoubleTapZoom(element) {
+    let lastTap = 0;
+    element.addEventListener('touchend', (e) => {
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTap;
+        if (tapLength < 500 && tapLength > 0) {
+            e.preventDefault();
+        }
+        lastTap = currentTime;
+    });
+}
+
+function handleVisibilityChange() {
+    // Pause speech when app goes to background (optional)
+    if (document.hidden && isSpeaking) {
+        // On mobile, speech might continue in background
+        // This is actually desirable for a walking tour app
+        console.log('App in background, speech continues');
+    }
 }
 
 function showStatus(message, type = 'info') {
@@ -280,6 +309,40 @@ function displayArticles(articles) {
 function setupArticleNavigation() {
     // Add keyboard navigation (only set up once during init)
     document.addEventListener('keydown', handleKeyNavigation);
+    
+    // Add touch swipe navigation for mobile
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchEndX = 0;
+    let touchEndY = 0;
+    
+    articlesDiv.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+    
+    articlesDiv.addEventListener('touchend', (e) => {
+        touchEndX = e.changedTouches[0].screenX;
+        touchEndY = e.changedTouches[0].screenY;
+        handleSwipeGesture();
+    }, { passive: true });
+    
+    function handleSwipeGesture() {
+        const swipeThreshold = 50;
+        const diffX = touchStartX - touchEndX;
+        const diffY = touchStartY - touchEndY;
+        
+        // Only handle horizontal swipes (not vertical scrolling)
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > swipeThreshold) {
+            if (diffX > 0) {
+                // Swipe left - next article
+                navigateToArticle(currentArticleIndex + 1);
+            } else {
+                // Swipe right - previous article
+                navigateToArticle(currentArticleIndex - 1);
+            }
+        }
+    }
 }
 
 function handleKeyNavigation(e) {
