@@ -32,6 +32,10 @@ class TourPlayer {
         this.speechStartTime = null;
         this.expectedDuration = null;
 
+        // Web Audio API for keeping page active when locked
+        this.audioContext = null;
+        this.silentSource = null;
+
         // Callbacks
         this.onStateChange = null;
         this.onTrackChange = null;
@@ -39,8 +43,64 @@ class TourPlayer {
 
         // Initialize
         this._initializeVoices();
+        this._initializeAudioContext();
         this._setupMediaSession();
         this._setupVisibilityHandler();
+    }
+
+    // Initialize Web Audio API context for keeping page active
+    _initializeAudioContext() {
+        try {
+            // Create audio context
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.audioContext = new AudioContext();
+            console.log('TourPlayer: Audio context initialized');
+        } catch (error) {
+            console.warn('TourPlayer: Web Audio API not available:', error);
+        }
+    }
+
+    // Start playing silent audio to keep page active (prevents throttling when locked)
+    _startSilentAudio() {
+        if (!this.audioContext) return;
+
+        try {
+            // Resume context if suspended (required on some browsers)
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+
+            // Stop any existing silent audio
+            this._stopSilentAudio();
+
+            // Create a silent audio buffer (1 second of silence)
+            const buffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate, this.audioContext.sampleRate);
+
+            // Create and configure source
+            this.silentSource = this.audioContext.createBufferSource();
+            this.silentSource.buffer = buffer;
+            this.silentSource.loop = true; // Loop the silent audio
+            this.silentSource.connect(this.audioContext.destination);
+            this.silentSource.start();
+
+            console.log('TourPlayer: Silent audio started (keeps page active when locked)');
+        } catch (error) {
+            console.warn('TourPlayer: Could not start silent audio:', error);
+        }
+    }
+
+    // Stop silent audio
+    _stopSilentAudio() {
+        if (this.silentSource) {
+            try {
+                this.silentSource.stop();
+                this.silentSource.disconnect();
+            } catch (error) {
+                // Ignore errors if already stopped
+            }
+            this.silentSource = null;
+            console.log('TourPlayer: Silent audio stopped');
+        }
     }
 
     // Initialize speech synthesis voices
@@ -123,6 +183,7 @@ class TourPlayer {
         this.manuallyStopped = true;
         this._cancelSpeech();
         this._clearMonitoring();
+        this._stopSilentAudio(); // Stop keeping page active
         this._updateState(false);
         console.log('TourPlayer: Stopped');
     }
@@ -186,6 +247,9 @@ class TourPlayer {
             // Auto-advance on error if enabled
             if (this.autoPlayEnabled && !this.manuallyStopped) {
                 this._scheduleNext();
+            } else {
+                // Not continuing, stop silent audio
+                this._stopSilentAudio();
             }
         }
     }
@@ -209,15 +273,21 @@ class TourPlayer {
     _speak(text) {
         return new Promise((resolve, reject) => {
             if (!this.speechSynth) {
+                console.error('TourPlayer: Speech synthesis not supported');
                 reject(new Error('Speech synthesis not supported'));
                 return;
             }
+
+            console.log('TourPlayer: Preparing to speak, text length:', text.length);
+            console.log('TourPlayer: speechSynth.speaking:', this.speechSynth.speaking);
+            console.log('TourPlayer: speechSynth.pending:', this.speechSynth.pending);
 
             // Delay to ensure clean state after cancel
             setTimeout(() => {
                 // Re-check voices
                 if (this.voices.length === 0) {
                     this.voices = this.speechSynth.getVoices();
+                    console.log('TourPlayer: Reloaded voices, count:', this.voices.length);
                 }
 
                 this.currentUtterance = new SpeechSynthesisUtterance(text);
@@ -227,9 +297,11 @@ class TourPlayer {
 
                 // Select voice
                 this._selectVoice(this.currentUtterance);
+                console.log('TourPlayer: Selected voice:', this.currentUtterance.voice?.name, this.currentUtterance.lang);
 
                 // Track timing
                 this.expectedDuration = this._estimateDuration(text);
+                console.log('TourPlayer: Expected duration:', this.expectedDuration, 'ms');
 
                 // Event handlers
                 this.currentUtterance.onstart = () => {
@@ -237,18 +309,21 @@ class TourPlayer {
                     this.speechStartTime = Date.now();
                     this._updateState(true);
                     this._startMonitoring();
-                    console.log('TourPlayer: Speech started');
+                    this._startSilentAudio(); // Keep page active when locked
+                    console.log('TourPlayer: ✓ Speech STARTED successfully');
                 };
 
                 this.currentUtterance.onend = () => {
-                    console.log('TourPlayer: Speech ended');
+                    console.log('TourPlayer: ✓ Speech ENDED normally');
                     this._handleSpeechEnd();
                     resolve();
                 };
 
                 this.currentUtterance.onerror = (event) => {
-                    console.error('TourPlayer: Speech error:', event.error);
+                    console.error('TourPlayer: ✗ Speech ERROR:', event.error, event);
+                    this.isPlaying = false;
                     this._clearMonitoring();
+                    this._updateState(false);
 
                     if (event.error !== 'canceled') {
                         reject(new Error(event.error));
@@ -257,21 +332,36 @@ class TourPlayer {
                     }
                 };
 
-                // Start speech
+                // Define start speaking function
+                const _startSpeaking = () => {
+                    console.log('TourPlayer: Calling speechSynth.speak()');
+                    this.speechSynth.speak(this.currentUtterance);
+                    console.log('TourPlayer: speechSynth.speak() called, now speaking:', this.speechSynth.speaking);
+
+                    // Chrome Android fix - check if paused and resume
+                    setTimeout(() => {
+                        console.log('TourPlayer: Post-speak check - speaking:', this.speechSynth.speaking, 'paused:', this.speechSynth.paused);
+                        if (this.speechSynth.paused) {
+                            console.log('TourPlayer: Speech is paused, resuming...');
+                            this.speechSynth.resume();
+                        }
+                        // If speech hasn't started, it might have failed silently
+                        if (!this.speechSynth.speaking && !this.isPlaying) {
+                            console.error('TourPlayer: Speech failed to start!');
+                            reject(new Error('Speech failed to start'));
+                        }
+                    }, SPEECH_RESUME_CHECK_DELAY_MS);
+                };
+
+                // Ensure clean state
                 if (this.speechSynth.pending || this.speechSynth.speaking) {
+                    console.log('TourPlayer: Canceling existing speech');
                     this.speechSynth.cancel();
+                    // Extra delay after cancel for Chrome
+                    setTimeout(() => _startSpeaking(), 100);
+                } else {
+                    _startSpeaking();
                 }
-
-                console.log('TourPlayer: Starting speech, length:', text.length);
-                this.speechSynth.speak(this.currentUtterance);
-
-                // Chrome Android fix - resume if paused
-                setTimeout(() => {
-                    if (this.speechSynth.paused) {
-                        console.log('TourPlayer: Resuming paused speech');
-                        this.speechSynth.resume();
-                    }
-                }, SPEECH_RESUME_CHECK_DELAY_MS);
 
             }, SPEECH_CANCEL_DELAY_MS);
         });
@@ -328,6 +418,7 @@ _selectVoice(utterance) {
                 this.play();
             } else {
                 console.log('TourPlayer: Reached end of queue');
+                this._stopSilentAudio(); // Stop keeping page active
                 if (this.onStateChange) {
                     this.onStateChange({
                         playing: false,
@@ -837,7 +928,7 @@ async function fetchArticleImages(pageids) {
                         img.src = page.thumbnail.source;
                         img.alt = page.title || 'Article image';
                         img.className = 'article-image';
-                        img.loading = 'lazy';
+                        // Remove lazy loading for better Firefox compatibility
                         imageContainer.appendChild(img);
                     }
                 }
@@ -899,7 +990,7 @@ async function fetchSingleImageInfo(pageid, imageTitle) {
                     img.src = imageUrl;
                     img.alt = imageTitle;
                     img.className = 'article-image';
-                    img.loading = 'lazy';
+                    // Remove lazy loading for better Firefox compatibility
                     imageContainer.appendChild(img);
                 }
             }
