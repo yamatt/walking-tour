@@ -1,3 +1,11 @@
+    // Utility for debug logging to app debug panel if available
+    _logDebug(...args) {
+        if (typeof window !== 'undefined' && window.logDebug) {
+            window.logDebug('[TourPlayer]', ...args);
+        } else {
+            console.log('[TourPlayer]', ...args);
+        }
+    }
 import {
     ARTICLE_PAUSE_MS,
     SPEECH_CANCEL_DELAY_MS,
@@ -483,6 +491,7 @@ export default class TourPlayer {
     // Handle speech ending
     _handleSpeechEnd(playId) {
         if (playId && playId !== this.playbackId) {
+            this._logDebug('_handleSpeechEnd: playId changed, not advancing.');
             return;
         }
         this.isPlaying = false;
@@ -490,18 +499,23 @@ export default class TourPlayer {
         this._clearMonitoring();
 
         if (this.autoPlayEnabled && !this.manuallyStopped) {
+            this._logDebug('_handleSpeechEnd: autoPlayEnabled and not manuallyStopped, calling _scheduleNext');
             this._scheduleNext();
+        } else {
+            this._logDebug('_handleSpeechEnd: NOT autoPlayEnabled or manuallyStopped, not advancing.');
         }
     }
 
     // Schedule next track
     _scheduleNext() {
+        this._logDebug('_scheduleNext: called. Queue length:', this.queue.length, 'Current index:', this.currentIndex);
         setTimeout(() => {
             if (this.currentIndex < this.queue.length - 1) {
+                this._logDebug('_scheduleNext: Advancing to next article.');
                 this.currentIndex++;
                 this.play();
             } else {
-                console.log('TourPlayer: Reached end of queue');
+                this._logDebug('_scheduleNext: Reached end of queue.');
                 this._stopSilentAudio();
                 if (this.onStateChange) {
                     this.onStateChange({
