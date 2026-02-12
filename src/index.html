@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <meta name="theme-color" content="#667eea">
+    <meta name="theme-color" content="#0f766e">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Walking Tour">
@@ -21,7 +21,7 @@
             <button id="startBtn" class="button button-primary">📍 Start Tour</button>
             <button id="stopBtn" class="button button-stop hidden">⏹️ Stop Reading</button>
             <button id="refreshBtn" class="button button-secondary hidden">🔄 Refresh Nearby Places</button>
-            
+
             <div id="status" class="status hidden"></div>
             <div id="locationInfo" class="location-info hidden"></div>
         </div>
@@ -31,7 +31,19 @@
             <p style="margin-top: 10px;">Finding places near you...</p>
         </div>
 
-        <div id="articles" class="articles"></div>
+        <div id="currentArticle" class="article-card current-article hidden">
+            <a id="currentTitle" class="article-title" href="#" target="_blank" rel="noopener noreferrer">Article title</a>
+            <div id="currentDistance" class="article-distance"></div>
+            <div id="currentImage" class="article-image-container"></div>
+            <div id="currentSnippet" class="article-snippet"></div>
+        </div>
+        <div id="emptyState" class="empty-state hidden">No results found within 10km</div>
+    </div>
+
+    <div class="player-bar" role="toolbar" aria-label="Playback controls">
+        <button id="prevBtn" class="player-button" aria-label="Previous article">⏮</button>
+        <button id="playPauseBtn" class="player-button player-button--primary" aria-label="Play">▶️</button>
+        <button id="nextBtn" class="player-button" aria-label="Next article">⏭</button>
     </div>
 </body>
 </html>

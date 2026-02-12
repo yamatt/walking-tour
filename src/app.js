@@ -516,6 +516,9 @@ let currentPosition = null;
 let locationWatchId = null;
 let lastLocationCheck = null;
 let nearbyArticles = [];
+let currentArticle = null;
+const imageCache = new Map();
+const snippetCache = new Map();
 const tourPlayer = new TourPlayer();
 
 // DOM elements
@@ -524,8 +527,16 @@ const stopBtn = document.getElementById('stopBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const statusDiv = document.getElementById('status');
 const locationInfo = document.getElementById('locationInfo');
-const articlesDiv = document.getElementById('articles');
 const loadingDiv = document.getElementById('loading');
+const prevBtn = document.getElementById('prevBtn');
+const playPauseBtn = document.getElementById('playPauseBtn');
+const nextBtn = document.getElementById('nextBtn');
+const currentArticleDiv = document.getElementById('currentArticle');
+const currentTitleLink = document.getElementById('currentTitle');
+const currentDistanceDiv = document.getElementById('currentDistance');
+const currentImageContainer = document.getElementById('currentImage');
+const currentSnippetDiv = document.getElementById('currentSnippet');
+const emptyStateDiv = document.getElementById('emptyState');
 
 // Setup player callbacks
 tourPlayer.onStateChange = (state) => {
@@ -536,6 +547,17 @@ tourPlayer.onStateChange = (state) => {
         if (state.completed) {
             showStatus(state.message, 'success');
         }
+    }
+
+    if (playPauseBtn) {
+        playPauseBtn.textContent = state.playing ? '⏸' : '▶️';
+        playPauseBtn.setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
+    }
+
+    if (prevBtn && nextBtn) {
+        const hasQueue = state.queueLength > 0;
+        prevBtn.disabled = !hasQueue || state.currentIndex <= 0;
+        nextBtn.disabled = !hasQueue || state.currentIndex >= state.queueLength - 1;
     }
 };
 
@@ -556,14 +578,11 @@ tourPlayer.onTrackChange = (article, index, total) => {
         article._locationContext = locationContext;
     }
 
-    // Highlight active card
-    document.querySelectorAll('.article-card').forEach(card => {
-        card.classList.remove('active');
-    });
-    const activeCard = document.querySelector(`[data-pageid="${article.pageid}"]`);
-    if (activeCard) {
-        activeCard.classList.add('active');
-        activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    renderCurrentArticle(article, index, total);
+
+    if (prevBtn && nextBtn) {
+        prevBtn.disabled = index <= 0;
+        nextBtn.disabled = index >= total - 1;
     }
 };
 
@@ -576,6 +595,26 @@ function init() {
     startBtn.addEventListener('click', startTour);
     stopBtn.addEventListener('click', () => tourPlayer.stop());
     refreshBtn.addEventListener('click', refreshNearbyPlaces);
+
+    if (prevBtn && playPauseBtn && nextBtn) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        prevBtn.addEventListener('click', () => tourPlayer.previous());
+        nextBtn.addEventListener('click', () => tourPlayer.next());
+        playPauseBtn.addEventListener('click', () => {
+            if (tourPlayer.getIsPlaying()) {
+                tourPlayer.stop();
+            } else if (nearbyArticles.length > 0) {
+                tourPlayer.play();
+            } else {
+                startTour();
+            }
+        });
+
+        preventDoubleTapZoom(prevBtn);
+        preventDoubleTapZoom(playPauseBtn);
+        preventDoubleTapZoom(nextBtn);
+    }
 
     // Prevent zoom on double-tap for buttons (mobile)
     preventDoubleTapZoom(startBtn);
@@ -835,7 +874,8 @@ async function fetchNearbyArticles(lat, lon) {
             }, 1000);
         } else {
             showStatus('No places found nearby. Try moving to a different location.', 'info');
-            articlesDiv.innerHTML = '<p style="text-align: center; padding: 20px; color: #666;">No results found within 10km</p>';
+            if (currentArticleDiv) currentArticleDiv.classList.add('hidden');
+            if (emptyStateDiv) emptyStateDiv.classList.remove('hidden');
         }
 
         startBtn.disabled = false;
@@ -847,59 +887,72 @@ async function fetchNearbyArticles(lat, lon) {
 }
 
 function displayArticles(articles) {
-    articlesDiv.innerHTML = '';
+    if (!currentArticleDiv || !emptyStateDiv) return;
 
-    articles.forEach((article, index) => {
-        const card = document.createElement('div');
-        card.className = 'article-card';
-        card.dataset.pageid = article.pageid;
-        card.dataset.index = index;
+    if (articles.length === 0) {
+        currentArticleDiv.classList.add('hidden');
+        emptyStateDiv.classList.remove('hidden');
+        currentArticle = null;
+        if (currentTitleLink) currentTitleLink.textContent = '';
+        if (currentDistanceDiv) currentDistanceDiv.textContent = '';
+        if (currentSnippetDiv) currentSnippetDiv.textContent = '';
+        if (currentImageContainer) currentImageContainer.innerHTML = '';
+        return;
+    }
 
+    emptyStateDiv.classList.add('hidden');
+    currentArticleDiv.classList.remove('hidden');
+
+    renderCurrentArticle(articles[0], 0, articles.length);
+
+    // Preload snippets for faster updates
+    articles.forEach((article) => {
+        fetchArticleSnippet(article.pageid);
+    });
+}
+
+function renderCurrentArticle(article, index, total) {
+    if (!article || !currentArticleDiv) return;
+
+    currentArticle = article;
+
+    if (currentTitleLink) {
+        currentTitleLink.textContent = article.title;
+        currentTitleLink.href = `https://en.wikipedia.org/?curid=${article.pageid}`;
+    }
+
+    if (currentDistanceDiv) {
         const distance = article.currentDist ? `${Math.round(article.currentDist)} meters away` :
                          article.dist ? `${Math.round(article.dist)} meters away` :
                          'Distance unknown';
+        currentDistanceDiv.textContent = `📏 ${distance} (${index + 1}/${total})`;
+    }
 
-        // Create image container (initially empty, will be populated by fetchArticleImages)
-        const imageContainer = document.createElement('div');
-        imageContainer.className = 'article-image-container';
-        imageContainer.id = `image-${article.pageid}`;
+    if (currentSnippetDiv) {
+        const cachedSnippet = snippetCache.get(article.pageid);
+        currentSnippetDiv.textContent = cachedSnippet || 'Loading description...';
+    }
 
-        // Create elements safely to avoid XSS
-        const titleLink = document.createElement('a');
-        titleLink.className = 'article-title';
-        titleLink.textContent = article.title;
-        titleLink.href = `https://en.wikipedia.org/?curid=${article.pageid}`;
-        titleLink.target = '_blank';
-        titleLink.rel = 'noopener noreferrer';
-        // Prevent title click from triggering card click
-        titleLink.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
+    updateCurrentImageForArticle(article.pageid);
 
-        const distanceDiv = document.createElement('div');
-        distanceDiv.className = 'article-distance';
-        distanceDiv.textContent = `📏 ${distance}`;
+    if (prevBtn && nextBtn) {
+        prevBtn.disabled = index <= 0;
+        nextBtn.disabled = index >= total - 1;
+    }
+}
 
-        const snippetDiv = document.createElement('div');
-        snippetDiv.className = 'article-snippet';
-        snippetDiv.id = `snippet-${article.pageid}`;
-        snippetDiv.textContent = 'Click to load description...';
+function updateCurrentImageForArticle(pageid) {
+    if (!currentImageContainer) return;
 
-        card.appendChild(imageContainer);
-        card.appendChild(titleLink);
-        card.appendChild(distanceDiv);
-        card.appendChild(snippetDiv);
+    currentImageContainer.innerHTML = '';
+    const imageUrl = imageCache.get(pageid);
+    if (!imageUrl) return;
 
-        // Click to manually select and play
-        card.addEventListener('click', () => {
-            tourPlayer.playTrack(index);
-        });
-
-        articlesDiv.appendChild(card);
-
-        // Fetch snippet for each article
-        fetchArticleSnippet(article.pageid);
-    });
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.alt = currentArticle ? currentArticle.title : 'Article image';
+    img.className = 'article-image';
+    currentImageContainer.appendChild(img);
 }
 
 async function fetchArticleImages(pageids) {
@@ -922,14 +975,9 @@ async function fetchArticleImages(pageids) {
             // First pass: add thumbnails where available
             Object.values(data.query.pages).forEach(page => {
                 if (page.thumbnail) {
-                    const imageContainer = document.getElementById(`image-${page.pageid}`);
-                    if (imageContainer) {
-                        const img = document.createElement('img');
-                        img.src = page.thumbnail.source;
-                        img.alt = page.title || 'Article image';
-                        img.className = 'article-image';
-                        // Remove lazy loading for better Firefox compatibility
-                        imageContainer.appendChild(img);
+                    imageCache.set(page.pageid, page.thumbnail.source);
+                    if (currentArticle && currentArticle.pageid === page.pageid) {
+                        updateCurrentImageForArticle(page.pageid);
                     }
                 }
             });
@@ -984,14 +1032,9 @@ async function fetchSingleImageInfo(pageid, imageTitle) {
             const page = Object.values(data.query.pages)[0];
             if (page.imageinfo && page.imageinfo[0]) {
                 const imageUrl = page.imageinfo[0].thumburl || page.imageinfo[0].url;
-                const imageContainer = document.getElementById(`image-${pageid}`);
-                if (imageContainer && !imageContainer.hasChildNodes()) {
-                    const img = document.createElement('img');
-                    img.src = imageUrl;
-                    img.alt = imageTitle;
-                    img.className = 'article-image';
-                    // Remove lazy loading for better Firefox compatibility
-                    imageContainer.appendChild(img);
+                imageCache.set(pageid, imageUrl);
+                if (currentArticle && currentArticle.pageid === pageid) {
+                    updateCurrentImageForArticle(pageid);
                 }
             }
         }
@@ -1019,9 +1062,11 @@ async function fetchArticleSnippet(pageid) {
 
         if (data.query && data.query.pages && data.query.pages[pageid]) {
             const page = data.query.pages[pageid];
-            const snippetDiv = document.getElementById(`snippet-${pageid}`);
-            if (snippetDiv && page.extract) {
-                snippetDiv.textContent = page.extract;
+            if (page.extract) {
+                snippetCache.set(pageid, page.extract);
+                if (currentArticle && currentArticle.pageid === pageid && currentSnippetDiv) {
+                    currentSnippetDiv.textContent = page.extract;
+                }
             }
         }
     } catch (error) {
