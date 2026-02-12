@@ -282,13 +282,16 @@ export default class TourPlayer {
                 this.expectedDuration = this._estimateDuration(text);
                 console.log('TourPlayer: Expected duration:', this.expectedDuration, 'ms');
 
+
                 const speakChunk = (index) => {
                     if (this.manuallyStopped) {
+                        console.log('TourPlayer: Speech manually stopped, resolving.');
                         resolve();
                         return;
                     }
 
                     if (currentPlayId !== this.playbackId) {
+                        console.log('TourPlayer: PlayId changed, resolving.');
                         resolve();
                         return;
                     }
@@ -320,22 +323,25 @@ export default class TourPlayer {
 
                     this.currentUtterance.onend = () => {
                         if (currentPlayId !== this.playbackId) {
+                            console.log('TourPlayer: onend: PlayId changed, resolving.');
                             resolve();
                             return;
                         }
                         this.lastChunkEndTime = Date.now();
                         if (index < this.speechChunks.length - 1) {
+                            console.log('TourPlayer: Speech chunk ended, moving to next chunk', index + 2);
                             setTimeout(() => speakChunk(index + 1), 0);
                             return;
                         }
 
-                        console.log('TourPlayer: ✓ Speech ENDED normally');
+                        console.log('TourPlayer: ✓ Speech ENDED normally, calling _handleSpeechEnd');
                         this._handleSpeechEnd(currentPlayId);
                         resolve();
                     };
 
                     this.currentUtterance.onerror = (event) => {
                         if (currentPlayId !== this.playbackId) {
+                            console.log('TourPlayer: onerror: PlayId changed, resolving.');
                             resolve();
                             return;
                         }
@@ -345,8 +351,10 @@ export default class TourPlayer {
                         this._updateState(false);
 
                         if (event.error !== 'canceled') {
+                            console.log('TourPlayer: Speech error not canceled, rejecting and advancing.');
                             reject(new Error(event.error));
                         } else {
+                            console.log('TourPlayer: Speech error canceled, resolving.');
                             resolve();
                         }
                     };

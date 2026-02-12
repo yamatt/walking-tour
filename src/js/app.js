@@ -169,35 +169,46 @@ function hideStatus() {
 // =============================================================================
 // Location & Tour Management
 // =============================================================================
-let didUnlockSpeech = false;
 
+let didUnlockSpeech = false;
 function unlockSpeechAndAudio() {
-    // Unlock AudioContext if needed
-    if (tourPlayer.audioContext && tourPlayer.audioContext.state === 'suspended') {
-        tourPlayer.audioContext.resume().then(() => {
-            logDebug('AudioContext resumed by user gesture');
-        });
-    }
-    // Unlock speechSynthesis with a dummy utterance
-    if (window.speechSynthesis && !didUnlockSpeech) {
-        try {
-            const utter = new window.SpeechSynthesisUtterance(' ');
-            utter.volume = 0;
-            utter.rate = 1;
-            utter.onend = () => {
-                logDebug('Dummy speech utterance ended (unlock)');
-            };
-            window.speechSynthesis.speak(utter);
-            didUnlockSpeech = true;
-            logDebug('Dummy speech utterance spoken (unlock)');
-        } catch (e) {
-            logDebug('Speech unlock error: ' + e);
+    return new Promise((resolve) => {
+        // Unlock AudioContext if needed
+        if (tourPlayer.audioContext && tourPlayer.audioContext.state === 'suspended') {
+            tourPlayer.audioContext.resume().then(() => {
+                logDebug('AudioContext resumed by user gesture');
+            });
         }
-    }
+        // Unlock speechSynthesis with a dummy utterance
+        if (window.speechSynthesis && !didUnlockSpeech) {
+            try {
+                const utter = new window.SpeechSynthesisUtterance(' ');
+                utter.volume = 0;
+                utter.rate = 1;
+                utter.onend = () => {
+                    logDebug('Dummy speech utterance ended (unlock)');
+                    didUnlockSpeech = true;
+                    resolve();
+                };
+                utter.onerror = () => {
+                    logDebug('Dummy speech utterance error (unlock)');
+                    didUnlockSpeech = true;
+                    resolve();
+                };
+                window.speechSynthesis.speak(utter);
+                logDebug('Dummy speech utterance spoken (unlock)');
+            } catch (e) {
+                logDebug('Speech unlock error: ' + e);
+                resolve();
+            }
+        } else {
+            resolve();
+        }
+    });
 }
 
-function startTour() {
-    unlockSpeechAndAudio();
+async function startTour() {
+    await unlockSpeechAndAudio();
     if (!navigator.geolocation) {
         showStatus('Geolocation is not supported by your browser', 'error');
         return;
@@ -275,7 +286,10 @@ function refreshNearbyPlaces() {
 }
 
 function updateDistancesAndCheckSwitch(lat, lon) {
-    if (!nearbyArticles.length) return;
+    if (!nearbyArticles.length) {
+        logDebug('No nearby articles, not switching.');
+        return;
+    }
 
     nearbyArticles.forEach((article) => {
         article.currentDist = calculateDistance(lat, lon, article.lat, article.lon);
@@ -298,10 +312,21 @@ function updateDistancesAndCheckSwitch(lat, lon) {
         const playingArticle = tourPlayer.getCurrentArticle();
         const nearestArticle = nearbyArticles[0];
 
+        logDebug('Checking for article switch:', {
+            playingArticle: playingArticle ? playingArticle.title : null,
+            nearestArticle: nearestArticle ? nearestArticle.title : null,
+            playingPageId: playingArticle ? playingArticle.pageid : null,
+            nearestPageId: nearestArticle ? nearestArticle.pageid : null,
+            playingDist: playingArticle ? playingArticle.currentDist : null,
+            nearestDist: nearestArticle ? nearestArticle.currentDist : null,
+            threshold: ARTICLE_SWITCH_THRESHOLD_METERS
+        });
+
         if (playingArticle && nearestArticle &&
             playingArticle.pageid !== nearestArticle.pageid &&
             nearestArticle.currentDist < playingArticle.currentDist - ARTICLE_SWITCH_THRESHOLD_METERS) {
 
+            logDebug(`Switching to nearer place: ${nearestArticle.title}`);
             showStatus(`Switching to nearer place: ${nearestArticle.title}`, 'info');
             tourPlayer.playTrack(0);
         }
