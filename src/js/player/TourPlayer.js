@@ -1,4 +1,3 @@
-
 import {
     ARTICLE_PAUSE_MS,
     SPEECH_CANCEL_DELAY_MS,
@@ -9,18 +8,15 @@ import {
 import { fetchArticleExtract } from '../services/wikiApi.js';
 
 // TourPlayer Class - Manages all playback logic
-export default class TourPlayer {
-    // Utility for debug logging to app debug panel if available
-    TourPlayer.prototype._logDebug = function() {
-        if (typeof window !== 'undefined' && window.logDebug) {
-            window.logDebug.apply(window, ['[TourPlayer]'].concat(Array.prototype.slice.call(arguments)));
-        } else {
-            // eslint-disable-next-line no-console
-            console.log.apply(console, ['[TourPlayer]'].concat(Array.prototype.slice.call(arguments)));
+class TourPlayer {
+        // Internal debug logger
+        _logDebug(...args) {
+            // You can enhance this to use a custom logger or UI panel if desired
+            if (window && window.console) {
+                console.debug('[TourPlayer]', ...args);
+            }
         }
-    };
     constructor() {
-        this.queue = [];
         this.currentIndex = 0;
         this.isPlaying = false;
         this.autoPlayEnabled = true;
@@ -32,7 +28,6 @@ export default class TourPlayer {
         this.currentUtterance = null;
         this.voices = [];
         this.voicesLoaded = false;
-        export default class TourPlayer {
         // Monitoring
         this.monitorInterval = null;
         this.speechStartTime = null;
@@ -70,19 +65,10 @@ export default class TourPlayer {
             console.warn('TourPlayer: Web Audio API not available:', error);
         }
     }
-
     // Start playing silent audio to keep page active (prevents throttling when locked)
     _startSilentAudio() {
         if (!this.audioContext) return;
 
-            TourPlayer.prototype._logDebug = function() {
-                if (typeof window !== 'undefined' && window.logDebug) {
-                    window.logDebug.apply(window, ['[TourPlayer]'].concat(Array.prototype.slice.call(arguments)));
-                } else {
-                    // eslint-disable-next-line no-console
-                    console.log.apply(console, ['[TourPlayer]'].concat(Array.prototype.slice.call(arguments)));
-                }
-            };
         try {
             if (this.audioContext.state === 'suspended') {
                 this.audioContext.resume();
@@ -619,4 +605,8 @@ export default class TourPlayer {
             this.currentIndex = articles.length - 1;
         }
     }
+
 }
+
+
+export default TourPlayer;
