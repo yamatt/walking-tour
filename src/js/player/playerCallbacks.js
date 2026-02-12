@@ -3,6 +3,9 @@
 import { showStatus } from '../utils/appUtils.js';
 import { calculateDistance, calculateBearing, bearingToCompassDirection, formatDistance } from '../index.js';
 import { prevBtn, nextBtn, playPauseBtn, currentPosition, currentArticleDiv, currentTitleLink, currentDistanceDiv, currentSnippetDiv, currentImageContainer, emptyStateDiv } from '../dom/elements.js';
+import { renderCurrentArticle } from '../app.js';
+
+import { stopBtn } from '../dom/elements.js';
 
 export const onStateChange = (state) => {
     if (state.playing) {
@@ -39,7 +42,13 @@ export const onTrackChange = (article, index, total) => {
         // Example: '30 meters north of you is '
         article._locationContext = `${distanceText} ${direction.toLowerCase()} of you is `;
     }
-    // ...existing code for rendering...
+
+    renderCurrentArticle(article, index, total);
+
+    if (prevBtn && nextBtn) {
+        prevBtn.disabled = index <= 0;
+        nextBtn.disabled = index >= total - 1;
+    }
 };
 
 export const onError = (message) => {

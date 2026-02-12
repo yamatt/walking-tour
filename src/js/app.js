@@ -370,7 +370,7 @@ function displayArticles(articles) {
     });
 }
 
-function renderCurrentArticle(article, index, total) {
+export function renderCurrentArticle(article, index, total) {
     if (!article || !currentArticleDiv) return;
 
     currentArticle = article;
