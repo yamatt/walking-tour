@@ -9,6 +9,7 @@ const DOUBLE_TAP_THRESHOLD_MS = 500; // Double-tap detection window in milliseco
 const SPEECH_CANCEL_DELAY_MS = 200; // Delay after cancel before new speech
 const SPEECH_RESUME_CHECK_DELAY_MS = 100; // Delay before checking if resume needed
 const SPEECH_MONITOR_INTERVAL_MS = 2000; // How often to check speech status
+const SPEECH_CHUNK_MAX_CHARS = 1200; // Split long speech into smaller chunks
 
 // =============================================================================
 // TourPlayer Class - Manages all playback logic
@@ -31,6 +32,10 @@ class TourPlayer {
         this.monitorInterval = null;
         this.speechStartTime = null;
         this.expectedDuration = null;
+        this.speechChunks = [];
+        this.chunkIndex = 0;
+        this.lastChunkEndTime = null;
+        this.isChunking = false;
 
         // Web Audio API for keeping page active when locked
         this.audioContext = null;
@@ -289,79 +294,112 @@ class TourPlayer {
                     this.voices = this.speechSynth.getVoices();
                     console.log('TourPlayer: Reloaded voices, count:', this.voices.length);
                 }
+                this.speechChunks = this._buildSpeechChunks(text, SPEECH_CHUNK_MAX_CHARS);
+                this.chunkIndex = 0;
+                this.lastChunkEndTime = null;
+                this.isChunking = this.speechChunks.length > 1;
 
-                this.currentUtterance = new SpeechSynthesisUtterance(text);
-                this.currentUtterance.rate = 0.9;
-                this.currentUtterance.pitch = 1;
-                this.currentUtterance.volume = 1;
+                console.log('TourPlayer: Speech chunks:', this.speechChunks.length);
 
-                // Select voice
-                this._selectVoice(this.currentUtterance);
-                console.log('TourPlayer: Selected voice:', this.currentUtterance.voice?.name, this.currentUtterance.lang);
+                if (this.speechChunks.length === 0) {
+                    reject(new Error('Speech text is empty'));
+                    return;
+                }
 
                 // Track timing
                 this.expectedDuration = this._estimateDuration(text);
                 console.log('TourPlayer: Expected duration:', this.expectedDuration, 'ms');
 
-                // Event handlers
-                this.currentUtterance.onstart = () => {
-                    this.isPlaying = true;
-                    this.speechStartTime = Date.now();
-                    this._updateState(true);
-                    this._startMonitoring();
-                    this._startSilentAudio(); // Keep page active when locked
-                    console.log('TourPlayer: ✓ Speech STARTED successfully');
-                };
-
-                this.currentUtterance.onend = () => {
-                    console.log('TourPlayer: ✓ Speech ENDED normally');
-                    this._handleSpeechEnd();
-                    resolve();
-                };
-
-                this.currentUtterance.onerror = (event) => {
-                    console.error('TourPlayer: ✗ Speech ERROR:', event.error, event);
-                    this.isPlaying = false;
-                    this._clearMonitoring();
-                    this._updateState(false);
-
-                    if (event.error !== 'canceled') {
-                        reject(new Error(event.error));
-                    } else {
+                const speakChunk = (index) => {
+                    if (this.manuallyStopped) {
                         resolve();
+                        return;
+                    }
+
+                    const chunkText = this.speechChunks[index];
+                    this.chunkIndex = index;
+
+                    this.currentUtterance = new SpeechSynthesisUtterance(chunkText);
+                    this.currentUtterance.rate = 0.9;
+                    this.currentUtterance.pitch = 1;
+                    this.currentUtterance.volume = 1;
+
+                    // Select voice
+                    this._selectVoice(this.currentUtterance);
+                    console.log('TourPlayer: Selected voice:', this.currentUtterance.voice?.name, this.currentUtterance.lang);
+
+                    // Event handlers
+                    this.currentUtterance.onstart = () => {
+                        if (index === 0) {
+                            this.isPlaying = true;
+                            this.speechStartTime = Date.now();
+                            this._updateState(true);
+                            this._startMonitoring();
+                            this._startSilentAudio(); // Keep page active when locked
+                            console.log('TourPlayer: ✓ Speech STARTED successfully');
+                        } else {
+                            console.log('TourPlayer: ✓ Speech chunk started', index + 1, '/', this.speechChunks.length);
+                        }
+                    };
+
+                    this.currentUtterance.onend = () => {
+                        this.lastChunkEndTime = Date.now();
+                        if (index < this.speechChunks.length - 1) {
+                            setTimeout(() => speakChunk(index + 1), 0);
+                            return;
+                        }
+
+                        console.log('TourPlayer: ✓ Speech ENDED normally');
+                        this._handleSpeechEnd();
+                        resolve();
+                    };
+
+                    this.currentUtterance.onerror = (event) => {
+                        console.error('TourPlayer: ✗ Speech ERROR:', event.error, event);
+                        this.isPlaying = false;
+                        this._clearMonitoring();
+                        this._updateState(false);
+
+                        if (event.error !== 'canceled') {
+                            reject(new Error(event.error));
+                        } else {
+                            resolve();
+                        }
+                    };
+
+                    // Define start speaking function
+                    const _startSpeaking = () => {
+                        console.log('TourPlayer: Calling speechSynth.speak()');
+                        this.speechSynth.speak(this.currentUtterance);
+                        console.log('TourPlayer: speechSynth.speak() called, now speaking:', this.speechSynth.speaking);
+
+                        // Chrome Android fix - check if paused and resume
+                        setTimeout(() => {
+                            console.log('TourPlayer: Post-speak check - speaking:', this.speechSynth.speaking, 'paused:', this.speechSynth.paused);
+                            if (this.speechSynth.paused) {
+                                console.log('TourPlayer: Speech is paused, resuming...');
+                                this.speechSynth.resume();
+                            }
+                            // If speech hasn't started, it might have failed silently
+                            if (!this.speechSynth.speaking && !this.isPlaying && index === 0) {
+                                console.error('TourPlayer: Speech failed to start!');
+                                reject(new Error('Speech failed to start'));
+                            }
+                        }, SPEECH_RESUME_CHECK_DELAY_MS);
+                    };
+
+                    // Ensure clean state
+                    if (this.speechSynth.pending || this.speechSynth.speaking) {
+                        console.log('TourPlayer: Canceling existing speech');
+                        this.speechSynth.cancel();
+                        // Extra delay after cancel for Chrome
+                        setTimeout(() => _startSpeaking(), 100);
+                    } else {
+                        _startSpeaking();
                     }
                 };
 
-                // Define start speaking function
-                const _startSpeaking = () => {
-                    console.log('TourPlayer: Calling speechSynth.speak()');
-                    this.speechSynth.speak(this.currentUtterance);
-                    console.log('TourPlayer: speechSynth.speak() called, now speaking:', this.speechSynth.speaking);
-
-                    // Chrome Android fix - check if paused and resume
-                    setTimeout(() => {
-                        console.log('TourPlayer: Post-speak check - speaking:', this.speechSynth.speaking, 'paused:', this.speechSynth.paused);
-                        if (this.speechSynth.paused) {
-                            console.log('TourPlayer: Speech is paused, resuming...');
-                            this.speechSynth.resume();
-                        }
-                        // If speech hasn't started, it might have failed silently
-                        if (!this.speechSynth.speaking && !this.isPlaying) {
-                            console.error('TourPlayer: Speech failed to start!');
-                            reject(new Error('Speech failed to start'));
-                        }
-                    }, SPEECH_RESUME_CHECK_DELAY_MS);
-                };
-
-                // Ensure clean state
-                if (this.speechSynth.pending || this.speechSynth.speaking) {
-                    console.log('TourPlayer: Canceling existing speech');
-                    this.speechSynth.cancel();
-                    // Extra delay after cancel for Chrome
-                    setTimeout(() => _startSpeaking(), 100);
-                } else {
-                    _startSpeaking();
-                }
+                speakChunk(0);
 
             }, SPEECH_CANCEL_DELAY_MS);
         });
@@ -390,12 +428,65 @@ _selectVoice(utterance) {
         return (words / adjustedWPM) * 60 * 1000;
     }
 
+    // Split long text into smaller chunks for more reliable playback
+    _buildSpeechChunks(text, maxLength) {
+        const normalized = text.replace(/\s+/g, ' ').trim();
+        if (!normalized) return [];
+        if (normalized.length <= maxLength) return [normalized];
+
+        const sentenceMatches = normalized.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [normalized];
+        const chunks = [];
+        let current = '';
+
+        sentenceMatches.forEach((sentence) => {
+            const trimmed = sentence.trim();
+            if (!trimmed) return;
+
+            if ((current + ' ' + trimmed).trim().length <= maxLength) {
+                current = current ? `${current} ${trimmed}` : trimmed;
+                return;
+            }
+
+            if (current) {
+                chunks.push(current);
+                current = '';
+            }
+
+            if (trimmed.length <= maxLength) {
+                current = trimmed;
+                return;
+            }
+
+            let segment = '';
+            trimmed.split(' ').forEach((word) => {
+                if (!word) return;
+                if ((segment + ' ' + word).trim().length <= maxLength) {
+                    segment = segment ? `${segment} ${word}` : word;
+                } else {
+                    if (segment) chunks.push(segment);
+                    segment = word;
+                }
+            });
+
+            if (segment) {
+                current = segment;
+            }
+        });
+
+        if (current) chunks.push(current);
+        return chunks;
+    }
+
     // Cancel current speech
     _cancelSpeech() {
         if (this.speechSynth) {
             this.speechSynth.cancel();
         }
         this.currentUtterance = null;
+        this.speechChunks = [];
+        this.chunkIndex = 0;
+        this.lastChunkEndTime = null;
+        this.isChunking = false;
     }
 
     // Handle speech ending
@@ -444,6 +535,11 @@ _selectVoice(utterance) {
     // Check if speech has actually finished
     _checkSpeechStatus() {
         if (this.manuallyStopped) return;
+
+        if (this.isChunking && this.lastChunkEndTime) {
+            const sinceChunkEnd = Date.now() - this.lastChunkEndTime;
+            if (sinceChunkEnd < 1500) return;
+        }
 
         const isActuallySpeaking = this.speechSynth && this.speechSynth.speaking;
 
@@ -537,6 +633,9 @@ const currentDistanceDiv = document.getElementById('currentDistance');
 const currentImageContainer = document.getElementById('currentImage');
 const currentSnippetDiv = document.getElementById('currentSnippet');
 const emptyStateDiv = document.getElementById('emptyState');
+const debugPanel = document.getElementById('debugPanel');
+const debugLog = document.getElementById('debugLog');
+const debugEntries = [];
 
 // Setup player callbacks
 tourPlayer.onStateChange = (state) => {
@@ -625,6 +724,17 @@ function init() {
     window.addEventListener('beforeunload', () => {
         tourPlayer.stop();
     });
+
+    window.addEventListener('error', (event) => {
+        if (event && event.message) {
+            logDebug(`Error: ${event.message}`, 'error');
+        }
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+        const reason = event && event.reason ? String(event.reason) : 'Unknown rejection';
+        logDebug(`Promise: ${reason}`, 'warn');
+    });
 }
 
 // =============================================================================
@@ -646,10 +756,37 @@ function showStatus(message, type = 'info') {
     statusDiv.textContent = message;
     statusDiv.className = `status ${type}`;
     statusDiv.classList.remove('hidden');
+    logDebug(message, type);
 }
 
 function hideStatus() {
     statusDiv.classList.add('hidden');
+}
+
+function logDebug(message, level = 'info') {
+    if (!debugPanel || !debugLog || !message) return;
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    debugEntries.unshift({ timestamp, message, level });
+    if (debugEntries.length > 6) debugEntries.pop();
+
+    debugLog.innerHTML = '';
+    debugEntries.forEach((entry) => {
+        const row = document.createElement('div');
+        row.className = `debug-entry debug-entry--${entry.level}`;
+
+        const time = document.createElement('div');
+        time.className = 'debug-time';
+        time.textContent = entry.timestamp;
+
+        const text = document.createElement('div');
+        text.className = 'debug-message';
+        text.textContent = entry.message;
+
+        row.appendChild(time);
+        row.appendChild(text);
+        debugLog.appendChild(row);
+    });
 }
 
 // =============================================================================
@@ -726,8 +863,12 @@ function onLocationError(error) {
 function refreshNearbyPlaces() {
     if (currentPosition) {
         const { latitude, longitude } = currentPosition.coords;
-        articlesDiv.innerHTML = '';
         nearbyArticles = [];
+        currentArticle = null;
+        imageCache.clear();
+        snippetCache.clear();
+        if (currentArticleDiv) currentArticleDiv.classList.add('hidden');
+        if (emptyStateDiv) emptyStateDiv.classList.add('hidden');
         tourPlayer.loadQueue([]);
         showStatus('Refreshing nearby places...', 'info');
         fetchNearbyArticles(latitude, longitude);
@@ -797,18 +938,14 @@ function updateDistancesAndCheckSwitch(lat, lon) {
     // Sort by distance
     nearbyArticles.sort((a, b) => a.currentDist - b.currentDist);
 
-    // Update UI with new distances
-    nearbyArticles.forEach((article, index) => {
-        const card = document.querySelector(`[data-pageid="${article.pageid}"]`);
-        if (card) {
-            const distanceDiv = card.querySelector('.article-distance');
-            if (distanceDiv) {
-                distanceDiv.textContent = `📏 ${Math.round(article.currentDist)} meters away`;
-            }
-            // Update order in DOM
-            articlesDiv.appendChild(card);
+    if (currentArticle) {
+        const currentIndex = nearbyArticles.findIndex(
+            article => article.pageid === currentArticle.pageid
+        );
+        if (currentIndex >= 0) {
+            renderCurrentArticle(currentArticle, currentIndex, nearbyArticles.length);
         }
-    });
+    }
 
     // Update player queue with new order
     tourPlayer.updateQueue(nearbyArticles);

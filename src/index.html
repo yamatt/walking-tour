@@ -11,17 +11,17 @@
     <title>Walking Tour - Discover Things Near You</title>
 </head>
 <body>
+    <div id="debugPanel" class="debug-panel" aria-live="polite" aria-atomic="false">
+        <div class="debug-title">Debug log</div>
+        <div id="debugLog" class="debug-log"></div>
+    </div>
     <div class="container">
         <header>
             <h1>🚶 Walking Tour</h1>
             <p class="subtitle">Discover and hear about things near you</p>
         </header>
 
-        <div class="control-panel">
-            <button id="startBtn" class="button button-primary">📍 Start Tour</button>
-            <button id="stopBtn" class="button button-stop hidden">⏹️ Stop Reading</button>
-            <button id="refreshBtn" class="button button-secondary hidden">🔄 Refresh Nearby Places</button>
-
+        <div class="status-panel">
             <div id="status" class="status hidden"></div>
             <div id="locationInfo" class="location-info hidden"></div>
         </div>
@@ -41,9 +41,16 @@
     </div>
 
     <div class="player-bar" role="toolbar" aria-label="Playback controls">
-        <button id="prevBtn" class="player-button" aria-label="Previous article">⏮</button>
-        <button id="playPauseBtn" class="player-button player-button--primary" aria-label="Play">▶️</button>
-        <button id="nextBtn" class="player-button" aria-label="Next article">⏭</button>
+        <div class="player-meta">
+            <button id="startBtn" class="bar-action bar-action--primary" aria-label="Start tour">📍 Start</button>
+            <button id="stopBtn" class="bar-action bar-action--stop hidden" aria-label="Stop reading">⏹ Stop</button>
+            <button id="refreshBtn" class="bar-action bar-action--ghost hidden" aria-label="Refresh nearby places">🔄 Refresh</button>
+        </div>
+        <div class="player-controls">
+            <button id="prevBtn" class="player-button" aria-label="Previous article">⏮</button>
+            <button id="playPauseBtn" class="player-button player-button--primary" aria-label="Play">▶️</button>
+            <button id="nextBtn" class="player-button" aria-label="Next article">⏭</button>
+        </div>
     </div>
 </body>
 </html>

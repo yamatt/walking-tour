@@ -30,10 +30,65 @@ body {
     touch-action: manipulation;
 }
 
+.debug-panel {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(860px, calc(100% - 24px));
+    background: rgba(20, 24, 22, 0.7);
+    color: #f5f7f6;
+    border-radius: 12px;
+    padding: 10px 12px;
+    z-index: 20;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(8px);
+}
+
+.debug-title {
+    font-size: 0.85em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.8;
+    margin-bottom: 6px;
+}
+
+.debug-log {
+    display: grid;
+    gap: 6px;
+    font-size: 0.9em;
+    max-height: 140px;
+    overflow: hidden;
+}
+
+.debug-entry {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.debug-time {
+    font-size: 0.8em;
+    color: rgba(245, 247, 246, 0.7);
+}
+
+.debug-message {
+    color: #f5f7f6;
+}
+
+.debug-entry--error .debug-message {
+    color: #ffb4b4;
+}
+
+.debug-entry--warn .debug-message {
+    color: #ffd699;
+}
+
 .container {
     max-width: 800px;
     margin: 0 auto;
-    padding-bottom: 120px;
+    padding-bottom: 170px;
 }
 
 header {
@@ -53,67 +108,8 @@ h1 {
     color: var(--muted);
 }
 
-.control-panel {
-    background: var(--card);
-    border-radius: 15px;
-    padding: 25px;
-    box-shadow: 0 10px 30px var(--shadow);
-    margin-bottom: 20px;
-}
-
-.button {
-    width: 100%;
-    padding: 15px 30px;
-    font-size: 1.1em;
-    font-weight: 600;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-bottom: 10px;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    touch-action: manipulation;
-    user-select: none;
-    -webkit-user-select: none;
-}
-
-.button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.button:active:not(:disabled) {
-    transform: scale(0.98);
-}
-
-.button-primary {
-    background: linear-gradient(135deg, var(--accent) 0%, #15a098 100%);
-    color: white;
-}
-
-.button-primary:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(15, 118, 110, 0.3);
-}
-
-.button-secondary {
-    background: #efe9e0;
-    color: var(--ink);
-}
-
-.button-secondary:hover:not(:disabled) {
-    background: #e5ded4;
-}
-
-.button-stop {
-    background: #d94848;
-    color: white;
-}
-
-.button-stop:hover:not(:disabled) {
-    background: #c53c3c;
+.status-panel {
+    margin-bottom: 16px;
 }
 
 .status {
@@ -121,6 +117,7 @@ h1 {
     border-radius: 10px;
     margin-bottom: 15px;
     font-weight: 500;
+    box-shadow: 0 8px 20px var(--shadow);
 }
 
 .status.info {
@@ -285,11 +282,62 @@ h1 {
     background: var(--card);
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
     box-shadow: 0 -8px 20px rgba(16, 24, 20, 0.12);
+    display: grid;
+    gap: 10px;
+    z-index: 10;
+}
+
+.player-meta {
     display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.player-controls {
+    display: flex;
+    gap: 14px;
     justify-content: center;
     align-items: center;
-    gap: 14px;
-    z-index: 10;
+}
+
+.bar-action {
+    border: none;
+    background: #efe9e0;
+    color: var(--ink);
+    padding: 10px 14px;
+    border-radius: 999px;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+.bar-action--primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #15a098 100%);
+    color: white;
+    box-shadow: 0 8px 16px rgba(15, 118, 110, 0.25);
+}
+
+.bar-action--stop {
+    background: #d94848;
+    color: white;
+}
+
+.bar-action--ghost {
+    background: #f3eee6;
+}
+
+.bar-action:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.bar-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .player-button {
@@ -345,11 +393,6 @@ h1 {
         padding: 15px;
     }
 
-    .button {
-        padding: 12px 20px;
-        font-size: 1em;
-    }
-
     .article-card {
         padding: 15px;
     }
@@ -393,6 +436,11 @@ h1 {
         width: 58px;
         height: 58px;
     }
+
+    .bar-action {
+        padding: 8px 12px;
+        font-size: 0.9em;
+    }
 }
 
 @media (max-width: 400px) {
@@ -402,15 +450,6 @@ h1 {
 
     h1 {
         font-size: 1.75em;
-    }
-
-    .control-panel {
-        padding: 12px;
-    }
-
-    .button {
-        padding: 10px 15px;
-        font-size: 0.95em;
     }
 
     .article-card {
@@ -425,7 +464,6 @@ h1 {
 }
 
 /* Prevent text selection on interactive elements */
-.button,
 .article-card,
 header {
     -webkit-touch-callout: none;
