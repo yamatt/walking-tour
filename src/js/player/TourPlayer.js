@@ -1,11 +1,13 @@
-    // Utility for debug logging to app debug panel if available
-    _logDebug(...args) {
-        if (typeof window !== 'undefined' && window.logDebug) {
-            window.logDebug('[TourPlayer]', ...args);
-        } else {
-            console.log('[TourPlayer]', ...args);
-        }
+
+// Utility for debug logging to app debug panel if available
+TourPlayer.prototype._logDebug = function() {
+    if (typeof window !== 'undefined' && window.logDebug) {
+        window.logDebug.apply(window, ['[TourPlayer]'].concat(Array.prototype.slice.call(arguments)));
+    } else {
+        // eslint-disable-next-line no-console
+        console.log.apply(console, ['[TourPlayer]'].concat(Array.prototype.slice.call(arguments)));
     }
+};
 import {
     ARTICLE_PAUSE_MS,
     SPEECH_CANCEL_DELAY_MS,
