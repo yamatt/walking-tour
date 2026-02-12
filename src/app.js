@@ -21,6 +21,7 @@ class TourPlayer {
         this.isPlaying = false;
         this.autoPlayEnabled = true;
         this.manuallyStopped = false;
+        this.isFirefox = /firefox/i.test(navigator.userAgent);
 
         // Speech synthesis
         this.speechSynth = window.speechSynthesis;
@@ -382,8 +383,12 @@ class TourPlayer {
                             }
                             // If speech hasn't started, it might have failed silently
                             if (!this.speechSynth.speaking && !this.isPlaying && index === 0) {
-                                console.error('TourPlayer: Speech failed to start!');
-                                reject(new Error('Speech failed to start'));
+                                if (this.isFirefox) {
+                                    console.warn('TourPlayer: Speech start status unclear (Firefox), continuing');
+                                } else {
+                                    console.error('TourPlayer: Speech failed to start!');
+                                    reject(new Error('Speech failed to start'));
+                                }
                             }
                         }, SPEECH_RESUME_CHECK_DELAY_MS);
                     };

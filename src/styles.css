@@ -58,7 +58,9 @@ body {
     gap: 6px;
     font-size: 0.9em;
     max-height: 140px;
-    overflow: hidden;
+    overflow: auto;
+    padding-right: 4px;
+    -webkit-overflow-scrolling: touch;
 }
 
 .debug-entry {
