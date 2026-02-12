@@ -5,7 +5,6 @@ import './styles.css';
 const LOCATION_CHECK_INTERVAL_MS = 30000; // 30 seconds between location checks
 const ARTICLE_SWITCH_THRESHOLD_METERS = 100; // Switch to nearer article if 100m closer
 const ARTICLE_PAUSE_MS = 2000; // 2 second pause between articles
-const SWIPE_THRESHOLD_PX = 50; // Minimum swipe distance for gesture detection
 const DOUBLE_TAP_THRESHOLD_MS = 500; // Double-tap detection window in milliseconds
 
 // State management
@@ -18,6 +17,12 @@ let nearbyArticles = [];
 let currentArticleIndex = 0;
 let locationWatchId = null;
 let lastLocationCheck = null;
+let voicesLoaded = false;
+let availableVoices = [];
+let speechMonitorInterval = null;
+let speechStartTime = null;
+let expectedSpeechDuration = null;
+let manuallyStopped = false;
 
 // DOM elements
 const startBtn = document.getElementById('startBtn');
@@ -34,9 +39,6 @@ function init() {
     stopBtn.addEventListener('click', stopSpeaking);
     refreshBtn.addEventListener('click', refreshNearbyPlaces);
 
-    // Set up keyboard navigation once
-    setupArticleNavigation();
-
     // Prevent zoom on double-tap for buttons (mobile)
     preventDoubleTapZoom(startBtn);
     preventDoubleTapZoom(stopBtn);
@@ -49,27 +51,160 @@ function init() {
 
     // Handle visibility changes (e.g., screen lock on mobile)
     document.addEventListener('visibilitychange', handleVisibilityChange);
-}
 
-function preventDoubleTapZoom(element) {
-    let lastTap = 0;
-    element.addEventListener('touchend', (e) => {
-        const currentTime = new Date().getTime();
-        const tapLength = currentTime - lastTap;
-        if (tapLength < DOUBLE_TAP_THRESHOLD_MS && tapLength > 0) {
-            e.preventDefault();
-        }
-        lastTap = currentTime;
-    });
+    // Initialize speech synthesis voices (important for Chrome on Android)
+    initializeSpeechSynthesis();
+
+    // Set up media session for headphone controls
+    setupMediaSession();
 }
 
 function handleVisibilityChange() {
-    // Pause speech when app goes to background (optional)
-    if (document.hidden && isSpeaking) {
-        // On mobile, speech might continue in background
-        // This is actually desirable for a walking tour app
-        console.log('App in background, speech continues');
+    if (!document.hidden && isSpeaking) {
+        // Page became visible - check if speech should have finished
+        checkSpeechStatus();
     }
+}
+
+function checkSpeechStatus() {
+    // Don't auto-advance if user manually stopped
+    if (manuallyStopped) return;
+
+    // Check if speech synthesis is actually speaking
+    const isActuallySpeaking = speechSynth && speechSynth.speaking;
+
+    if (isSpeaking && !isActuallySpeaking) {
+        // We think we're speaking but we're not - speech must have finished
+        console.log('Speech ended while in background, advancing...');
+        handleSpeechEnd();
+    } else if (isSpeaking && speechStartTime && expectedSpeechDuration) {
+        // Check if we've exceeded expected duration (with some buffer)
+        const elapsed = Date.now() - speechStartTime;
+        if (elapsed > expectedSpeechDuration + 5000) {
+            // Speech has taken too long, probably finished
+            console.log('Speech appears to have finished (timeout), advancing...');
+            handleSpeechEnd();
+        }
+    }
+}
+
+function handleSpeechEnd() {
+    isSpeaking = false;
+    stopBtn.classList.add('hidden');
+
+    // Clear monitor interval
+    if (speechMonitorInterval) {
+        clearInterval(speechMonitorInterval);
+        speechMonitorInterval = null;
+    }
+
+    // Only auto-advance if not manually stopped
+    if (!manuallyStopped) {
+        showStatus('Finished reading', 'success');
+        // Auto-advance to next article if in auto-play mode
+        if (autoPlayMode) {
+            advanceToNextArticle();
+        }
+    }
+}
+
+function estimateSpeechDuration(text) {
+    // Estimate speech duration based on text length
+    // Assuming average rate of 150 words per minute (2.5 words per second)
+    const words = text.split(/\s+/).length;
+    const rate = 0.9; // Our speech rate setting
+    const baseWPM = 150;
+    const adjustedWPM = baseWPM * rate;
+    const minutes = words / adjustedWPM;
+    return minutes * 60 * 1000; // Convert to milliseconds
+}
+
+function setupMediaSession() {
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+            if (nearbyArticles.length > 0) {
+                // Go to next article
+                const nextIndex = currentArticleIndex + 1;
+                if (nextIndex < nearbyArticles.length) {
+                    currentArticleIndex = nextIndex;
+                    const article = nearbyArticles[currentArticleIndex];
+                    readArticle(article.pageid, article.title);
+
+                    // Scroll to the article card for visual feedback
+                    const card = document.querySelector(`[data-pageid="${article.pageid}"]`);
+                    if (card) {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }
+            }
+        });
+
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+            if (nearbyArticles.length > 0) {
+                // Go to previous article
+                const prevIndex = currentArticleIndex - 1;
+                if (prevIndex >= 0) {
+                    currentArticleIndex = prevIndex;
+                    const article = nearbyArticles[currentArticleIndex];
+                    readArticle(article.pageid, article.title);
+
+                    // Scroll to the article card for visual feedback
+                    const card = document.querySelector(`[data-pageid="${article.pageid}"]`);
+                    if (card) {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }
+            }
+        });
+
+        navigator.mediaSession.setActionHandler('play', () => {
+            if (nearbyArticles.length > 0 && !isSpeaking) {
+                const article = nearbyArticles[currentArticleIndex];
+                readArticle(article.pageid, article.title);
+            }
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+            stopSpeaking();
+        });
+    }
+}
+
+function updateMediaSessionMetadata(title, index, total) {
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: title,
+            artist: `Walking Tour (${index + 1}/${total})`,
+            album: 'Nearby Places'
+        });
+    }
+}
+
+function initializeSpeechSynthesis() {
+    if (!speechSynth) return;
+
+    // Load voices - Chrome needs this
+    function loadVoices() {
+        availableVoices = speechSynth.getVoices();
+        if (availableVoices.length > 0) {
+            voicesLoaded = true;
+            console.log('Voices loaded:', availableVoices.length);
+        }
+    }
+
+    // Chrome loads voices asynchronously
+    loadVoices();
+
+    if (speechSynth.onvoiceschanged !== undefined) {
+        speechSynth.onvoiceschanged = loadVoices;
+    }
+
+    // Fallback: try loading voices after a delay
+    setTimeout(() => {
+        if (!voicesLoaded) {
+            loadVoices();
+        }
+    }, 100);
 }
 
 function showStatus(message, type = 'info') {
@@ -364,12 +499,13 @@ function displayArticles(articles) {
 
 async function fetchArticleImages(pageids) {
     try {
-        // Fetch images for multiple pages at once
+        // First try to fetch thumbnails (pageimages)
         const url = `https://en.wikipedia.org/w/api.php?` +
             `action=query&` +
-            `prop=pageimages&` +
+            `prop=pageimages|images&` +
             `piprop=thumbnail&` +
             `pithumbsize=300&` +
+            `imlimit=5&` +
             `pageids=${pageids.join('|')}&` +
             `format=json&` +
             `origin=*`;
@@ -378,6 +514,7 @@ async function fetchArticleImages(pageids) {
         const data = await response.json();
 
         if (data.query && data.query.pages) {
+            // First pass: add thumbnails where available
             Object.values(data.query.pages).forEach(page => {
                 if (page.thumbnail) {
                     const imageContainer = document.getElementById(`image-${page.pageid}`);
@@ -391,75 +528,74 @@ async function fetchArticleImages(pageids) {
                     }
                 }
             });
+
+            // Second pass: for pages without thumbnails, try to get first image
+            const pagesWithoutThumbnails = Object.values(data.query.pages).filter(
+                page => !page.thumbnail && page.images && page.images.length > 0
+            );
+
+            if (pagesWithoutThumbnails.length > 0) {
+                // Fetch details for first image of each page
+                for (const page of pagesWithoutThumbnails) {
+                    // Filter out common non-content images
+                    const contentImage = page.images.find(img => {
+                        const title = img.title.toLowerCase();
+                        return !title.includes('commons-logo') &&
+                               !title.includes('wiki') &&
+                               !title.includes('edit') &&
+                               !title.includes('padlock') &&
+                               !title.includes('question_book') &&
+                               !title.includes('ambox') &&
+                               !title.includes('symbol') &&
+                               !title.endsWith('.svg');
+                    });
+
+                    if (contentImage) {
+                        await fetchSingleImageInfo(page.pageid, contentImage.title);
+                    }
+                }
+            }
         }
     } catch (error) {
         console.error('Error fetching article images:', error);
     }
 }
 
-function setupArticleNavigation() {
-    // Add keyboard navigation (only set up once during init)
-    document.addEventListener('keydown', handleKeyNavigation);
+async function fetchSingleImageInfo(pageid, imageTitle) {
+    try {
+        const url = `https://en.wikipedia.org/w/api.php?` +
+            `action=query&` +
+            `titles=${encodeURIComponent(imageTitle)}&` +
+            `prop=imageinfo&` +
+            `iiprop=url&` +
+            `iiurlwidth=300&` +
+            `format=json&` +
+            `origin=*`;
 
-    // Add touch swipe navigation for mobile
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchEndX = 0;
-    let touchEndY = 0;
+        const response = await fetch(url);
+        const data = await response.json();
 
-    articlesDiv.addEventListener('touchstart', (e) => {
-        touchStartX = e.changedTouches[0].screenX;
-        touchStartY = e.changedTouches[0].screenY;
-    }, { passive: true });
-
-    articlesDiv.addEventListener('touchend', (e) => {
-        touchEndX = e.changedTouches[0].screenX;
-        touchEndY = e.changedTouches[0].screenY;
-        handleSwipeGesture();
-    }, { passive: true });
-
-    function handleSwipeGesture() {
-        const diffX = touchStartX - touchEndX;
-        const diffY = touchStartY - touchEndY;
-
-        // Only handle horizontal swipes (not vertical scrolling)
-        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > SWIPE_THRESHOLD_PX) {
-            if (diffX > 0) {
-                // Swipe left - next article
-                navigateToArticle(currentArticleIndex + 1);
-            } else {
-                // Swipe right - previous article
-                navigateToArticle(currentArticleIndex - 1);
+        if (data.query && data.query.pages) {
+            const page = Object.values(data.query.pages)[0];
+            if (page.imageinfo && page.imageinfo[0]) {
+                const imageUrl = page.imageinfo[0].thumburl || page.imageinfo[0].url;
+                const imageContainer = document.getElementById(`image-${pageid}`);
+                if (imageContainer && !imageContainer.hasChildNodes()) {
+                    const img = document.createElement('img');
+                    img.src = imageUrl;
+                    img.alt = imageTitle;
+                    img.className = 'article-image';
+                    img.loading = 'lazy';
+                    imageContainer.appendChild(img);
+                }
             }
         }
+    } catch (error) {
+        console.error('Error fetching single image info:', error);
     }
 }
 
-function handleKeyNavigation(e) {
-    if (!nearbyArticles.length) return;
 
-    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        e.preventDefault();
-        navigateToArticle(currentArticleIndex + 1);
-    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        navigateToArticle(currentArticleIndex - 1);
-    }
-}
-
-function navigateToArticle(newIndex) {
-    if (newIndex < 0 || newIndex >= nearbyArticles.length) return;
-
-    currentArticleIndex = newIndex;
-    const article = nearbyArticles[currentArticleIndex];
-    readArticle(article.pageid, article.title);
-
-    // Scroll to the article card
-    const card = document.querySelector(`[data-pageid="${article.pageid}"]`);
-    if (card) {
-        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-}
 
 async function fetchArticleSnippet(pageid) {
     try {
@@ -548,6 +684,7 @@ async function readArticle(pageid, title) {
                 }
 
                 showStatus(`Reading: ${sanitizedTitle} (${currentArticleIndex + 1}/${nearbyArticles.length})`, 'success');
+                updateMediaSessionMetadata(sanitizedTitle, currentArticleIndex, nearbyArticles.length);
                 speakText(`${directionIntro}${sanitizedTitle}. ${text}`);
             } else {
                 showStatus('No content available for this article', 'error');
@@ -597,6 +734,14 @@ function speakText(text) {
         return;
     }
 
+    // Reset manual stop flag when starting new speech
+    manuallyStopped = false;
+
+    // Ensure voices are loaded (Chrome on Android fix)
+    if (availableVoices.length === 0) {
+        availableVoices = speechSynth.getVoices();
+    }
+
     // Cancel any ongoing speech
     cancelCurrentSpeech();
 
@@ -605,33 +750,83 @@ function speakText(text) {
     currentUtterance.pitch = 1;
     currentUtterance.volume = 1;
 
+    // Select a voice (important for Chrome on Android)
+    if (availableVoices.length > 0) {
+        // Prefer English voices
+        const englishVoice = availableVoices.find(voice => voice.lang.startsWith('en'));
+        if (englishVoice) {
+            currentUtterance.voice = englishVoice;
+            currentUtterance.lang = englishVoice.lang;
+        } else {
+            // Fallback to first available voice
+            currentUtterance.voice = availableVoices[0];
+            currentUtterance.lang = availableVoices[0].lang;
+        }
+    } else {
+        // Set language explicitly even if no voice is selected
+        currentUtterance.lang = 'en-US';
+    }
+
+    // Track speech timing for background monitoring
+    speechStartTime = null;
+    expectedSpeechDuration = estimateSpeechDuration(text);
+
     currentUtterance.onstart = () => {
         isSpeaking = true;
         stopBtn.classList.remove('hidden');
+        speechStartTime = Date.now();
+
+        // Start monitoring speech status every 2 seconds
+        // This helps detect if speech finishes while phone is locked
+        if (speechMonitorInterval) {
+            clearInterval(speechMonitorInterval);
+        }
+        speechMonitorInterval = setInterval(() => {
+            checkSpeechStatus();
+        }, 2000);
     };
 
     currentUtterance.onend = () => {
-        isSpeaking = false;
-        stopBtn.classList.add('hidden');
-        showStatus('Finished reading', 'success');
-
-        // Auto-advance to next article if in auto-play mode
-        if (autoPlayMode) {
-            advanceToNextArticle();
-        }
+        handleSpeechEnd();
     };
 
     currentUtterance.onerror = (event) => {
         isSpeaking = false;
         stopBtn.classList.add('hidden');
+        console.error('Speech synthesis error:', event);
+
+        // Clear monitor interval
+        if (speechMonitorInterval) {
+            clearInterval(speechMonitorInterval);
+            speechMonitorInterval = null;
+        }
+
         showStatus('Error with speech synthesis: ' + event.error, 'error');
+
+        // If error, still try to advance to next article
+        if (autoPlayMode && event.error !== 'canceled') {
+            setTimeout(() => {
+                advanceToNextArticle();
+            }, 1000);
+        }
     };
 
+    // For Chrome on Android, resume() helps ensure speech starts
+    speechSynth.resume();
     speechSynth.speak(currentUtterance);
 }
 
 function stopSpeaking() {
+    // Set manual stop flag to prevent auto-advance
+    manuallyStopped = true;
+
     cancelCurrentSpeech();
+
+    // Clear monitor interval
+    if (speechMonitorInterval) {
+        clearInterval(speechMonitorInterval);
+        speechMonitorInterval = null;
+    }
 
     // Remove active state from all cards
     document.querySelectorAll('.article-card').forEach(card => {
