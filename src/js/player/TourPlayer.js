@@ -270,6 +270,14 @@ class TourPlayer {
                     this.voices = this.speechSynth.getVoices();
                     console.log('TourPlayer: Reloaded voices, count:', this.voices.length);
                 }
+                // If still no voices, show a visible error and skip
+                if (this.voices.length === 0) {
+                    if (this.onError) {
+                        this.onError('Speech system not ready. Please tap Start again or reload the page.');
+                    }
+                    reject(new Error('No speech voices available'));
+                    return;
+                }
 
                 this.speechChunks = this._buildSpeechChunks(text, SPEECH_CHUNK_MAX_CHARS);
                 this.chunkIndex = 0;
@@ -285,7 +293,6 @@ class TourPlayer {
 
                 this.expectedDuration = this._estimateDuration(text);
                 console.log('TourPlayer: Expected duration:', this.expectedDuration, 'ms');
-
 
                 const speakChunk = (index) => {
                     if (this.manuallyStopped) {
@@ -379,6 +386,9 @@ class TourPlayer {
                                     console.warn('TourPlayer: Speech start status unclear (Firefox), continuing');
                                 } else {
                                     console.error('TourPlayer: Speech failed to start!');
+                                    if (this.onError) {
+                                        this.onError('Speech failed to start. Please tap Start again or reload the page.');
+                                    }
                                     reject(new Error('Speech failed to start'));
                                 }
                             }

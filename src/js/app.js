@@ -14,6 +14,8 @@ import {
     createDebugLogger
 } from './index.js';
 
+import { onStateChange, onTrackChange, onError } from './player/playerCallbacks.js';
+
 // =============================================================================
 // Application State
 // =============================================================================
@@ -50,56 +52,9 @@ const { logDebug, attachGlobalHandlers } = createDebugLogger(debugPanel, debugLo
 // =============================================================================
 // Player Callbacks
 // =============================================================================
-// eslint-disable-next-line no-unused-vars
-const onStateChange = (state) => {
-    if (state.playing) {
-        stopBtn.classList.remove('hidden');
-    } else {
-        stopBtn.classList.add('hidden');
-        if (state.completed) {
-            showStatus(state.message, 'success');
-        }
-    }
-
-    if (playPauseBtn) {
-        playPauseBtn.textContent = state.playing ? '⏸' : '▶️';
-        playPauseBtn.setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
-    }
-
-    if (prevBtn && nextBtn) {
-        const hasQueue = state.queueLength > 0;
-        prevBtn.disabled = !hasQueue || state.currentIndex <= 0;
-        nextBtn.disabled = !hasQueue || state.currentIndex >= state.queueLength - 1;
-    }
-};
-
 tourPlayer.onStateChange = onStateChange;
-
-tourPlayer.onTrackChange = (article, index, total) => {
-    showStatus(`Reading: ${article.title} (${index + 1}/${total})`, 'success');
-
-    if (currentPosition) {
-        const { latitude, longitude } = currentPosition.coords;
-        const distance = calculateDistance(latitude, longitude, article.lat, article.lon);
-        const bearing = calculateBearing(latitude, longitude, article.lat, article.lon);
-        const direction = bearingToCompassDirection(bearing);
-        const distanceText = formatDistance(distance);
-
-        const locationContext = `${distanceText} to your ${direction} is `;
-        article._locationContext = locationContext;
-    }
-
-    renderCurrentArticle(article, index, total);
-
-    if (prevBtn && nextBtn) {
-        prevBtn.disabled = index <= 0;
-        nextBtn.disabled = index >= total - 1;
-    }
-};
-
-tourPlayer.onError = (message) => {
-    showStatus(`Error: ${message}`, 'error');
-};
+tourPlayer.onTrackChange = onTrackChange;
+tourPlayer.onError = onError;
 
 // =============================================================================
 // Initialization
@@ -143,28 +98,8 @@ function init() {
 // =============================================================================
 // Utility Functions
 // =============================================================================
-function preventDoubleTapZoom(element) {
-    let lastTap = 0;
-    element.addEventListener('touchend', (e) => {
-        const currentTime = new Date().getTime();
-        const tapLength = currentTime - lastTap;
-        if (tapLength < DOUBLE_TAP_THRESHOLD_MS && tapLength > 0) {
-            e.preventDefault();
-        }
-        lastTap = currentTime;
-    });
-}
 
-function showStatus(message, type = 'info') {
-    statusDiv.textContent = message;
-    statusDiv.className = `status ${type}`;
-    statusDiv.classList.remove('hidden');
-    logDebug(message, type);
-}
-
-function hideStatus() {
-    statusDiv.classList.add('hidden');
-}
+import { preventDoubleTapZoom, showStatus, hideStatus } from './utils/appUtils.js';
 
 // =============================================================================
 // Location & Tour Management
@@ -209,6 +144,14 @@ function unlockSpeechAndAudio() {
 
 async function startTour() {
     await unlockSpeechAndAudio();
+    // Check if voices are loaded (for Chrome Android)
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    if (!voices || voices.length === 0) {
+        showStatus('Speech system not ready. Please tap Start again or reload the page.', 'error');
+        startBtn.disabled = false;
+        return;
+    }
+
     if (!navigator.geolocation) {
         showStatus('Geolocation is not supported by your browser', 'error');
         return;
@@ -229,6 +172,7 @@ function onLocationSuccess(position) {
     const { latitude, longitude } = position.coords;
 
     currentPosition = position;
+    window.currentPosition = position;
 
     locationInfo.textContent = `📍 Your location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     locationInfo.classList.remove('hidden');

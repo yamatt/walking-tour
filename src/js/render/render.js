@@ -1,0 +1,3 @@
+// Rendering functions for articles and UI split from app.js
+// Exports: displayArticles, renderCurrentArticle, updateCurrentImageForArticle
+// ...existing code will be moved here from app.js...

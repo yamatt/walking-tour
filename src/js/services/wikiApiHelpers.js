@@ -1,0 +1,3 @@
+// Wikipedia API helpers split from app.js
+// Exports: fetchNearbyArticles, fetchAndCacheImages, fetchArticleSnippet
+// ...existing code will be moved here from app.js...

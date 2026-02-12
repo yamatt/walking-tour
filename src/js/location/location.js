@@ -1,0 +1,3 @@
+// Location and tour management logic split from app.js
+// Exports: startTour, onLocationSuccess, onLocationError, refreshNearbyPlaces, updateDistancesAndCheckSwitch
+// ...existing code will be moved here from app.js...
