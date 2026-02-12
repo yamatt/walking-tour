@@ -273,7 +273,7 @@ class TourPlayer {
                 // If still no voices, show a visible error and skip
                 if (this.voices.length === 0) {
                     if (this.onError) {
-                        this.onError('Speech system not ready. Please tap Start again or reload the page.');
+                        this.onError('Speech system not ready. On Chrome/Android, please enable sound permissions for this site in browser settings.');
                     }
                     reject(new Error('No speech voices available'));
                     return;
@@ -387,7 +387,7 @@ class TourPlayer {
                                 } else {
                                     console.error('TourPlayer: Speech failed to start!');
                                     if (this.onError) {
-                                        this.onError('Speech failed to start. Please tap Start again or reload the page.');
+                                        this.onError('Speech failed to start. On Chrome/Android, please enable sound permissions in browser settings.');
                                     }
                                     reject(new Error('Speech failed to start'));
                                 }

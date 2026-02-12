@@ -115,10 +115,21 @@ let didUnlockSpeech = false;
 function unlockSpeechAndAudio() {
     return new Promise((resolve) => {
         // Unlock AudioContext if needed
-        if (tourPlayer.audioContext && tourPlayer.audioContext.state === 'suspended') {
-            tourPlayer.audioContext.resume().then(() => {
-                logDebug('AudioContext resumed by user gesture');
-            });
+        if (tourPlayer.audioContext) {
+            if (tourPlayer.audioContext.state === 'suspended') {
+                tourPlayer.audioContext.resume().then(() => {
+                    logDebug('AudioContext resumed by user gesture');
+                    if (tourPlayer.audioContext.state === 'running') {
+                        logDebug('AudioContext is now running');
+                    }
+                }).catch((error) => {
+                    logDebug('AudioContext resume error: ' + error);
+                    showStatus('Unable to access audio. Please check your browser permissions for this site.', 'error');
+                });
+            } else if (tourPlayer.audioContext.state === 'interrupted') {
+                logDebug('AudioContext is interrupted - may need permissions');
+                showStatus('Audio access is blocked. Please enable audio/sound permissions in your browser settings.', 'error');
+            }
         }
         // Unlock speechSynthesis with a dummy utterance
         if (window.speechSynthesis && !didUnlockSpeech) {
@@ -131,8 +142,11 @@ function unlockSpeechAndAudio() {
                     didUnlockSpeech = true;
                     resolve();
                 };
-                utter.onerror = () => {
-                    logDebug('Dummy speech utterance error (unlock)');
+                utter.onerror = (event) => {
+                    logDebug('Dummy speech utterance error (unlock): ' + event.error);
+                    if (event.error === 'not-allowed') {
+                        showStatus('Speech access blocked. Please enable sound/speech permissions in your browser settings.', 'error');
+                    }
                     didUnlockSpeech = true;
                     resolve();
                 };
@@ -140,6 +154,7 @@ function unlockSpeechAndAudio() {
                 logDebug('Dummy speech utterance spoken (unlock)');
             } catch (e) {
                 logDebug('Speech unlock error: ' + e);
+                showStatus('Unable to initialize speech. Please check browser permissions.', 'error');
                 resolve();
             }
         } else {
@@ -153,7 +168,7 @@ async function startTour() {
     // Check if voices are loaded (for Chrome Android)
     const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
     if (!voices || voices.length === 0) {
-        showStatus('Speech system not ready. Please tap Start again or reload the page.', 'error');
+        showStatus('Speech system not ready. On Chrome/Android, make sure sound permissions are enabled for this site. Try tapping Start again or reload the page.', 'error');
         startBtn.disabled = false;
         return;
     }
