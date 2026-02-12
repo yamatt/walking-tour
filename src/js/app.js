@@ -80,14 +80,14 @@ function init() {
             }
         });
 
-        preventDoubleTapZoom(prevBtn);
-        preventDoubleTapZoom(playPauseBtn);
-        preventDoubleTapZoom(nextBtn);
+        preventDoubleTapZoom(prevBtn, DOUBLE_TAP_THRESHOLD_MS);
+        preventDoubleTapZoom(playPauseBtn, DOUBLE_TAP_THRESHOLD_MS);
+        preventDoubleTapZoom(nextBtn, DOUBLE_TAP_THRESHOLD_MS);
     }
 
-    preventDoubleTapZoom(startBtn);
-    preventDoubleTapZoom(stopBtn);
-    preventDoubleTapZoom(refreshBtn);
+    preventDoubleTapZoom(startBtn, DOUBLE_TAP_THRESHOLD_MS);
+    preventDoubleTapZoom(stopBtn, DOUBLE_TAP_THRESHOLD_MS);
+    preventDoubleTapZoom(refreshBtn, DOUBLE_TAP_THRESHOLD_MS);
 
     window.addEventListener('beforeunload', () => {
         tourPlayer.stop();
@@ -105,7 +105,7 @@ function init() {
 // Utility Functions
 // =============================================================================
 
-import { preventDoubleTapZoom, showStatus, hideStatus } from './utils/appUtils.js';
+import { preventDoubleTapZoom, showStatus } from './utils/appUtils.js';
 
 // =============================================================================
 // Location & Tour Management

@@ -2,10 +2,8 @@
 // Exports: onStateChange, onTrackChange, onError
 import { showStatus } from '../utils/appUtils.js';
 import { calculateDistance, calculateBearing, bearingToCompassDirection, formatDistance } from '../index.js';
-import { prevBtn, nextBtn, playPauseBtn, currentPosition, currentArticleDiv, currentTitleLink, currentDistanceDiv, currentSnippetDiv, currentImageContainer, emptyStateDiv } from '../dom/elements.js';
+import { prevBtn, nextBtn, playPauseBtn, stopBtn, currentPosition, currentArticleDiv, currentTitleLink, currentDistanceDiv, currentSnippetDiv, currentImageContainer, emptyStateDiv } from '../dom/elements.js';
 import { renderCurrentArticle } from '../app.js';
-
-import { stopBtn } from '../dom/elements.js';
 
 export const onStateChange = (state) => {
     if (state.playing) {
