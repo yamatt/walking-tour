@@ -2,7 +2,7 @@
 
 A web app that acts as your personal walking tour guide. As you walk around, it uses your location to discover nearby Wikipedia articles and reads them out loud using text-to-speech.
 
-![Walking Tour Screenshot](https://github.com/user-attachments/assets/59cffcdb-a4f7-4d0d-b5b3-3c47013b2d09)
+![Walking Tour Screenshot](./docs/walking-tour-mobile.png)
 
 ## Features
 
@@ -104,7 +104,7 @@ Tested on:
 
 - **Build System**: Webpack 5
 - **Languages**: HTML5, CSS3, ES6+ JavaScript
-- **APIs**: 
+- **APIs**:
   - Wikipedia geosearch and extracts API
   - Browser Geolocation API (watchPosition)
   - Web Speech API (SpeechSynthesis)
