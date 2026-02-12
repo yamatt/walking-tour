@@ -169,7 +169,35 @@ function hideStatus() {
 // =============================================================================
 // Location & Tour Management
 // =============================================================================
+let didUnlockSpeech = false;
+
+function unlockSpeechAndAudio() {
+    // Unlock AudioContext if needed
+    if (tourPlayer.audioContext && tourPlayer.audioContext.state === 'suspended') {
+        tourPlayer.audioContext.resume().then(() => {
+            logDebug('AudioContext resumed by user gesture');
+        });
+    }
+    // Unlock speechSynthesis with a dummy utterance
+    if (window.speechSynthesis && !didUnlockSpeech) {
+        try {
+            const utter = new window.SpeechSynthesisUtterance(' ');
+            utter.volume = 0;
+            utter.rate = 1;
+            utter.onend = () => {
+                logDebug('Dummy speech utterance ended (unlock)');
+            };
+            window.speechSynthesis.speak(utter);
+            didUnlockSpeech = true;
+            logDebug('Dummy speech utterance spoken (unlock)');
+        } catch (e) {
+            logDebug('Speech unlock error: ' + e);
+        }
+    }
+}
+
 function startTour() {
+    unlockSpeechAndAudio();
     if (!navigator.geolocation) {
         showStatus('Geolocation is not supported by your browser', 'error');
         return;
