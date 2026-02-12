@@ -1,5 +1,6 @@
 import '../styles.css';
 import {
+    DEBUG_ENABLED,
     LOCATION_CHECK_INTERVAL_MS,
     ARTICLE_SWITCH_THRESHOLD_METERS,
     DOUBLE_TAP_THRESHOLD_MS,
@@ -91,6 +92,11 @@ function init() {
     window.addEventListener('beforeunload', () => {
         tourPlayer.stop();
     });
+
+    // Hide debug panel if DEBUG_ENABLED is false
+    if (!DEBUG_ENABLED && debugPanel) {
+        debugPanel.style.display = 'none';
+    }
 
     attachGlobalHandlers();
 }
