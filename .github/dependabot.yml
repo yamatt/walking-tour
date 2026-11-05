@@ -7,9 +7,13 @@ updates:
       interval: "weekly"
     assignees:
       - "yamatt"
+    groups:
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     labels:
-      - "dependencies"
-      - "npm"
+      - dependency
+      - npm
     
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
@@ -18,6 +22,10 @@ updates:
       interval: "weekly"
     assignees:
       - "yamatt"
+    groups:
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     labels:
-      - "dependencies"
-      - "github-actions"
+      - dependency
+      - github-actions
